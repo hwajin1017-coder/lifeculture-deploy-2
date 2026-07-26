@@ -4671,38 +4671,53 @@ function whRenderFullStocktakeGrid() {
   if (!inner) return;
   var stockMap = whCalcStock();
   var locs = _whFullStocktakeWarehouse === 'C' ? COLD_LOCATIONS : WARM_LOCATIONS;
+  var prefix = _whFullStocktakeWarehouse === 'C' ? 'C' : 'W';
   inner.innerHTML = '';
-  // ── 구역별 그룹화: zoneKey 기준으로 묶어서 표시 ──
-  var zoneMap = {}; // { zoneKey: [locObj, ...] }
+  // ── 컨테이너를 flex column으로 변경 (구역별 가로 한 줄) ──
+  inner.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+
+  // 구역별 그룹화: zoneKey 기준
+  var zoneMap = {};
   var zoneOrder = [];
   locs.forEach(function(l) {
     if (!zoneMap[l.zoneKey]) { zoneMap[l.zoneKey] = []; zoneOrder.push(l.zoneKey); }
     zoneMap[l.zoneKey].push(l);
   });
+
   zoneOrder.forEach(function(zoneKey) {
     var zoneLocs = zoneMap[zoneKey];
-    // 구역 라벨 로우 (구역명 + 단 표시)
-    var levels = {};
-    zoneLocs.forEach(function(l) {
-      if (!levels[l.level]) levels[l.level] = [];
-      levels[l.level].push(l);
+    // 구역 라벨 (A1구역 등)
+    var zoneLabel = document.createElement('div');
+    zoneLabel.className = 'wh-full-st-zone-label';
+    zoneLabel.dataset.zoneKey = zoneKey;
+    var hasAnyStock = zoneLocs.some(function(l) {
+      var items = stockMap[l.code] || {};
+      return Object.values(items).some(function(v) { return (Number(v.qty) || 0) > 0; });
     });
-    Object.keys(levels).sort().forEach(function(lvl) {
-      var lvlLocs = levels[lvl];
-      // 단(level) 구분자 라벨
-      var prefix = (_whFullStocktakeWarehouse === 'C' ? 'C' : 'W') + '-' + zoneKey;
-      var lvlLabel = document.createElement('div');
-      lvlLabel.className = 'wh-full-st-zone-label';
-      lvlLabel.dataset.zoneKey = zoneKey;
-      lvlLabel.dataset.level = lvl;
-      lvlLabel.style.cssText = 'grid-column:1/-1;font-size:10px;font-weight:700;color:#888;padding:4px 2px 2px;border-bottom:1px solid #e0e0e0;margin-top:6px;letter-spacing:0.5px';
-      lvlLabel.textContent = prefix + ' — ' + lvl + '단 (' + lvlLocs.length + '파레트)';
-      inner.appendChild(lvlLabel);
-      lvlLocs.forEach(function(l) {
-        var card = whCreateFullStocktakeCard(l, stockMap);
-        inner.appendChild(card);
-      });
+    zoneLabel.style.cssText = 'font-size:11px;font-weight:700;color:#666;padding:8px 4px 2px;border-bottom:2px solid #d0d0d0;margin-top:4px;letter-spacing:0.5px';
+    zoneLabel.textContent = prefix + '-' + zoneKey + ' 구역 (' + zoneLocs.length + '파레트)';
+
+    // 구역 내 카드들을 가로 한 줄로 배치하는 행 컨테이너
+    var rowWrap = document.createElement('div');
+    rowWrap.className = 'wh-full-st-zone-row';
+    rowWrap.dataset.zoneKey = zoneKey;
+    rowWrap.style.cssText = 'display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:4px 0 6px;align-items:flex-start';
+
+    // 단(level) 순서대로 카드 배치
+    var sortedLocs = zoneLocs.slice().sort(function(a, b) {
+      if (a.level !== b.level) return a.level - b.level;
+      return a.slot - b.slot;
     });
+    sortedLocs.forEach(function(l) {
+      var card = whCreateFullStocktakeCard(l, stockMap);
+      card.style.flex = '0 0 200px'; // 고정 너비로 가로 배치
+      card.style.minWidth = '180px';
+      card.style.maxWidth = '220px';
+      rowWrap.appendChild(card);
+    });
+
+    inner.appendChild(zoneLabel);
+    inner.appendChild(rowWrap);
   });
   whFilterFullStocktakeGrid();
 }
@@ -4939,21 +4954,19 @@ function whFilterFullStocktakeGrid() {
   });
 
   if (emptyEl) emptyEl.style.display = visibleCount === 0 ? '' : 'none';
-  // 구역 라벨: 해당 단에 보이는 카드가 없으면 라벨도 숨김
-  var labels = inner.querySelectorAll('.wh-full-st-zone-label');
-  labels.forEach(function(label) {
-    var zoneKey = label.dataset.zoneKey;
-    var lvl = label.dataset.level;
-    var hasVisible = false;
-    var sibling = label.nextElementSibling;
-    while (sibling && !sibling.classList.contains('wh-full-st-zone-label')) {
-      if (sibling.classList.contains('wh-full-st-card') && sibling.style.display !== 'none') {
-        hasVisible = true;
-        break;
-      }
-      sibling = sibling.nextElementSibling;
-    }
-    label.style.display = hasVisible ? '' : 'none';
+  // 구역 라벨 + zone-row: 보이는 카드가 없으면 숨김
+  var rows = inner.querySelectorAll('.wh-full-st-zone-row');
+  rows.forEach(function(row) {
+    var zoneKey = row.dataset.zoneKey;
+    var hasVisible = row.querySelectorAll('.wh-full-st-card:not([style*="display: none"])').length > 0;
+    // display:none 체크는 style 속성으로 판단
+    var cards2 = row.querySelectorAll('.wh-full-st-card');
+    var anyVisible = false;
+    cards2.forEach(function(c) { if (c.style.display !== 'none') anyVisible = true; });
+    row.style.display = anyVisible ? '' : 'none';
+    // 라벨도 동기화
+    var label = inner.querySelector('.wh-full-st-zone-label[data-zone-key="' + zoneKey + '"]');
+    if (label) label.style.display = anyVisible ? '' : 'none';
   });
 }
 
