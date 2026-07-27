@@ -4823,6 +4823,12 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
               'onblur="this.style.background=\"transparent\";this.style.borderColor=\"transparent\";whFullStNameBlur(this)" ' +
               'style="flex:1;font-size:11px;font-weight:700;color:#333;border:1px solid transparent;border-radius:4px;padding:2px 5px;background:transparent;min-width:0;cursor:text" />' +
             '<span style="font-size:9px;color:#bbb" title="품목명 클릭 시 수정 가능">✎</span>' +
+            '<button class="wh-fs-item-move-btn" ' +
+              'data-loc="' + locCode + '" ' +
+              'data-item="' + itemName.replace(/"/g, '&quot;') + '" ' +
+              'data-ids="' + inboundIds.join(',') + '" ' +
+              'title="이 품목만 다른 위치로 이동" ' +
+              'style="font-size:11px;color:#2980b9;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1">↗</button>' +
             '<button class="wh-fs-del-btn" ' +
               'data-loc="' + locCode + '" ' +
               'data-item="' + itemName.replace(/"/g, '&quot;') + '" ' +
@@ -4869,6 +4875,16 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
       _whFullStocktakeDragSrc = null;
     });
   }
+  // 품목별 위치이동 버튼 이벤트 바인딩
+  card.querySelectorAll('.wh-fs-item-move-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var mloc = btn.dataset.loc;
+      var mitem = btn.dataset.item;
+      var mids = btn.dataset.ids ? btn.dataset.ids.split(',').filter(function(x) { return x; }) : [];
+      whFullStItemMove(mloc, mitem, mids);
+    });
+  });
   // 삭제 버튼 이벤트 바인딩 (data-attribute 방식)
   card.querySelectorAll('.wh-fs-del-btn').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
@@ -4985,6 +5001,83 @@ function whFilterFullStocktakeGrid() {
   });
 }
 
+
+// ── 품목별 개별 위치이동 ──────────────────────────────────────
+async function whFullStItemMove(fromLoc, itemName, ids) {
+  if (!_whFullStocktakeUnlocked) { showToast('관리자 허가가 필요합니다.', 'warning'); return; }
+  // ids 없으면 fromLoc+itemName으로 조회
+  if (!ids || ids.length === 0) {
+    ids = whInboundData
+      .filter(function(r) { return r.location === fromLoc && r.item_name === itemName; })
+      .map(function(r) { return r.id; });
+  }
+  if (ids.length === 0) { showToast('이동할 레코드를 찾을 수 없습니다.', 'warning'); return; }
+  // 이동 대상 위치 선택 모달 (prompt 사용)
+  var warehouseType = fromLoc.charAt(0); // C or W
+  var allLocs = warehouseType === 'C' ? COLD_LOCATIONS : WARM_LOCATIONS;
+  // 현재 위치 제외한 위치 목록 생성
+  var otherLocs = allLocs.filter(function(l) { return l.code !== fromLoc; });
+  // 모달 HTML 생성
+  var modalId = 'whFsItemMoveModal';
+  var existing = document.getElementById(modalId);
+  if (existing) existing.remove();
+  var modal = document.createElement('div');
+  modal.id = modalId;
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  var stockMap = whCalcStock();
+  var optionsHtml = otherLocs.map(function(l) {
+    var items = stockMap[l.code] || {};
+    var totalQty = Object.values(items).reduce(function(s,v){ return s+(Number(v.qty)||0); }, 0);
+    var label = l.code + (totalQty > 0 ? ' [재고있음]' : ' [빈위치]');
+    return '<option value="' + l.code + '">' + label + '</option>';
+  }).join('');
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:12px;padding:24px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2)">' +
+      '<div style="font-size:14px;font-weight:700;color:#333;margin-bottom:6px">품목 위치 이동</div>' +
+      '<div style="font-size:12px;color:#666;margin-bottom:12px">"' + itemName + '"<br>현재: <b>' + fromLoc + '</b> → 이동할 위치 선택</div>' +
+      '<select id="whFsItemMoveSel" style="width:100%;padding:8px;border:1.5px solid #8e44ad;border-radius:6px;font-size:12px;margin-bottom:12px">' +
+        '<option value="">위치 선택...</option>' + optionsHtml +
+      '</select>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+        '<button id="whFsItemMoveCancelBtn" style="padding:7px 16px;border:1px solid #ddd;border-radius:6px;background:#f8f9fa;font-size:12px;cursor:pointer">취소</button>' +
+        '<button id="whFsItemMoveConfirmBtn" style="padding:7px 16px;border:none;border-radius:6px;background:#8e44ad;color:#fff;font-size:12px;cursor:pointer;font-weight:700">이동</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  document.getElementById('whFsItemMoveCancelBtn').addEventListener('click', function() { modal.remove(); });
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  document.getElementById('whFsItemMoveConfirmBtn').addEventListener('click', async function() {
+    var toLoc = (document.getElementById('whFsItemMoveSel') || {}).value || '';
+    if (!toLoc) { showToast('이동할 위치를 선택해주세요.', 'warning'); return; }
+    modal.remove();
+    try {
+      for (var i = 0; i < ids.length; i++) {
+        var rec = whInboundData.find(function(r) { return r.id === ids[i]; });
+        if (!rec) continue;
+        var updated = Object.assign({}, rec, { location: toLoc, warehouse: toLoc.charAt(0) });
+        delete updated.id;
+        await apiPut('wh_inbound', ids[i], updated);
+      }
+      // 출고 레코드도 이동 (같은 품목+위치)
+      var outIds = whOutboundData
+        .filter(function(r) { return r.location === fromLoc && r.item_name === itemName; })
+        .map(function(r) { return r.id; });
+      for (var j = 0; j < outIds.length; j++) {
+        var orec = whOutboundData.find(function(r) { return r.id === outIds[j]; });
+        if (!orec) continue;
+        var oupdated = Object.assign({}, orec, { location: toLoc, warehouse: toLoc.charAt(0) });
+        delete oupdated.id;
+        await apiPut('wh_outbound', outIds[j], oupdated);
+      }
+      showToast('이동 완료: ' + itemName + ' (' + fromLoc + ' → ' + toLoc + ')', 'success');
+      whInvalidateMapCache();
+      await whReloadAll();
+      if (_whFullStocktakeUnlocked) whRenderFullStocktakeGrid();
+    } catch(e) {
+      showToast('이동 실패: ' + e.message, 'error');
+    }
+  });
+}
 
 // ── 위치코드 input blur 핸들러 (위치 이동) ──────────────────
 async function whFullStLocInputBlur(input) {
