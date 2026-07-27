@@ -4793,9 +4793,25 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
       var inboundIds = whInboundData
         .filter(function(r) { return r.location === locCode && r.item_name === itemName; })
         .map(function(r) { return r.id; });
+      // 소비기한 표시 준비
+      var expiryStr = info.expiry || '';
+      var expiryHtml = '';
+      if (expiryStr) {
+        var expiryDiff = Math.ceil((new Date(expiryStr) - new Date()) / 86400000);
+        var expiryColor = expiryDiff <= 0 ? '#c0392b' : expiryDiff <= 30 ? '#e67e22' : expiryDiff <= 90 ? '#f39c12' : '#27ae60';
+        var expiryBg = expiryDiff <= 0 ? '#fde8e8' : expiryDiff <= 30 ? '#fef3e2' : expiryDiff <= 90 ? '#fffde7' : '#eafaf1';
+        var expiryLabel = expiryDiff <= 0 ? '만료' : 'D-' + expiryDiff;
+        expiryHtml = '<div style="margin-top:2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">' +
+          '<span style="font-size:9px;color:#aaa">소비기한:</span>' +
+          '<span style="font-size:10px;font-weight:700;color:' + expiryColor + '">' + expiryStr + '</span>' +
+          '<span style="font-size:9px;font-weight:700;color:' + expiryColor + ';background:' + expiryBg + ';padding:1px 5px;border-radius:3px;border:1px solid ' + expiryColor + '44">' + expiryLabel + '</span>' +
+        '</div>';
+      } else {
+        expiryHtml = '<div style="margin-top:2px"><span style="font-size:9px;color:#ccc">소비기한 미입력</span></div>';
+      }
       itemsHtml +=
         '<div style="margin-bottom:6px;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #e8d5f5">' +
-          '<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">' +
+          '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">' +
             '<input type="text" ' +
               'id="wfst_name_' + safeId + '" ' +
               'data-loc="' + locCode + '" ' +
@@ -4814,7 +4830,8 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
               'title="이 품목 재고 삭제" ' +
               'style="font-size:11px;color:#e74c3c;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1">✕</button>' +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px">' +
+          expiryHtml +
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">' +
             '<span style="font-size:10px;color:#888">전산:</span>' +
             '<span style="font-size:12px;font-weight:700;color:#2980b9">' + sysQty + '</span>' +
             '<span style="font-size:10px;color:#888">' + (info.unit || '') + '</span>' +
@@ -4824,6 +4841,7 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
               'data-loc="' + locCode + '" ' +
               'data-item="' + itemName.replace(/"/g, '&quot;') + '" ' +
               'data-sys="' + sysQty + '" ' +
+              'data-expiry="' + expiryStr + '" ' +
               'placeholder="' + sysQty + '" ' +
               'oninput="whFullStCalcDiff(this)" ' +
               'style="width:60px;padding:3px 6px;border:1px solid #ddd;border-radius:4px;font-size:12px;font-weight:700" />' +
@@ -5401,12 +5419,14 @@ async function whSaveFullStocktake() {
     var sysQty = Number(inp.dataset.sys) || 0;
     var actualQty = Number(inp.value) || 0;
     var diff = actualQty - sysQty;
+    var expiryDate = inp.dataset.expiry || '';
     records.push({
       location: locCode,
       item_name: itemName,
       sys_qty: sysQty,
       actual_qty: actualQty,
       diff: diff,
+      expiry_date: expiryDate,
       stocktake_date: date
     });
   });
@@ -5443,6 +5463,10 @@ async function whSaveFullStocktake() {
       if (diff === 0) continue;
       adjSeq++;
       var adjLot = adjPrefix + '-' + String(adjSeq).padStart(3, '0');
+      // 원본 입고 레코드에서 unit 가져오기 (ea 기본값 대신)
+      var origRecs = whInboundData.filter(function(r) { return r.location === rec.location && r.item_name === rec.item_name; });
+      var origUnit = origRecs.length > 0 ? (origRecs[0].unit || 'ea') : 'ea';
+      var adjExpiry = rec.expiry_date || '';
       if (diff > 0) {
         await apiPost('wh_inbound', {
           lot_no: adjLot,
@@ -5451,7 +5475,8 @@ async function whSaveFullStocktake() {
           location: rec.location,
           item_name: rec.item_name,
           qty: diff,
-          unit: 'ea',
+          unit: origUnit,
+          expiry_date: adjExpiry,
           inbound_type: '재고조정',
           manager: '실사조정',
           memo: '전체실사 플러스 조정 (실사:' + rec.actual_qty + ' / 시스템:' + rec.sys_qty + ')',
@@ -5465,7 +5490,7 @@ async function whSaveFullStocktake() {
           location: rec.location,
           item_name: rec.item_name,
           qty: Math.abs(diff),
-          unit: 'ea',
+          unit: origUnit,
           destination: '재고조정',
           manager: '실사조정',
           memo: '전체실사 마이너스 조정 (실사:' + rec.actual_qty + ' / 시스템:' + rec.sys_qty + ')',
