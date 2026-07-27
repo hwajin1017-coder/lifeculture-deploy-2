@@ -5058,17 +5058,8 @@ async function whFullStItemMove(fromLoc, itemName, ids) {
         delete updated.id;
         await apiPut('wh_inbound', ids[i], updated);
       }
-      // 출고 레코드도 이동 (같은 품목+위치)
-      var outIds = whOutboundData
-        .filter(function(r) { return r.location === fromLoc && r.item_name === itemName; })
-        .map(function(r) { return r.id; });
-      for (var j = 0; j < outIds.length; j++) {
-        var orec = whOutboundData.find(function(r) { return r.id === outIds[j]; });
-        if (!orec) continue;
-        var oupdated = Object.assign({}, orec, { location: toLoc, warehouse: toLoc.charAt(0) });
-        delete oupdated.id;
-        await apiPut('wh_outbound', outIds[j], oupdated);
-      }
+      // 출고 레코드는 이동하지 않음 (재고 = 입고 - 출고 계산 유지)
+      // 출고는 원래 위치에 그대로 두어야 재고 계산이 정확함
       showToast('이동 완료: ' + itemName + ' (' + fromLoc + ' → ' + toLoc + ')', 'success');
       whInvalidateMapCache();
       await whReloadAll();
