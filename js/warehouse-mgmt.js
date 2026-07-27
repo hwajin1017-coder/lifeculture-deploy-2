@@ -233,7 +233,8 @@ function whBuildLocationSelect(prefix) {
     locs.forEach(function(l) {
       var items = stockMapIn[l.code] || {};
       var hasSameItem = itemNameIn && items[itemNameIn] && (Number(items[itemNameIn].qty) || 0) > 0;
-      var totalQty = Object.values(items).reduce(function(s, v) { return s + (Number(v.qty) || 0); }, 0);
+      // 음수 재고는 0으로 치울 (실제로 비어있는 위치)
+      var totalQty = Object.values(items).reduce(function(s, v) { return s + Math.max(0, Number(v.qty) || 0); }, 0);
       if (hasSameItem) {
         sameItemLocs.push({ loc: l, qty: items[itemNameIn].qty, unit: items[itemNameIn].unit || '' });
       } else if (totalQty > 0) {
@@ -293,7 +294,8 @@ function whBuildLocationSelect(prefix) {
     var emptyOutLocs = [];
     locs.forEach(function(l) {
       var items = stockMapOut[l.code] || {};
-      var totalQty = Object.values(items).reduce(function(s, v) { return s + (Number(v.qty) || 0); }, 0);
+      // 음수 재고는 0으로 치울 (실제로 비어있는 위치)
+      var totalQty = Object.values(items).reduce(function(s, v) { return s + Math.max(0, Number(v.qty) || 0); }, 0);
       if (totalQty > 0) {
         stockedLocs.push({ loc: l, qty: totalQty, items: items });
       } else {
@@ -725,7 +727,7 @@ function whShowLocDetail(locCode) {
   modal.classList.add('show');
 }
 
-// ── 입고 등록 ─────────────────────────────────────
+// ── 입고 등록 (레거시 - 미사용, whHandleInSubmit으로 대체됨) ─────────────────────────────────────
 async function whSubmitInbound() {
   var fields = ['whin_warehouse','whin_location','whin_item_name','whin_qty','whin_unit','whin_date'];
   var data = {};
@@ -926,6 +928,14 @@ async function whInDeleteSelected() {
 async function whInDeleteAll() {
   if (whInboundData.length === 0) { showToast('삭제할 입고 이력이 없습니다.', 'warning'); return; }
   if (!confirm('입고 이력 전체 ' + whInboundData.length + '건을 삭제하시겠습니까?\n(물류현황 입고 기록도 함께 삭제됩니다)\n이 작업은 되돌릴 수 없습니다.')) return;
+  // 관리자 비밀번호 인증 (실수 방지)
+  var adminPw = prompt('⚠️ 전체 삭제는 되돌릴 수 없습니다.\n관리자 비밀번호를 입력하세요:');
+  if (adminPw === null) return;
+  var _daUsers = [];
+  try { _daUsers = JSON.parse(localStorage.getItem('lc_users') || '[]'); } catch(e) {}
+  if (_daUsers.length === 0 && typeof DEFAULT_USERS !== 'undefined') _daUsers = DEFAULT_USERS;
+  var _daAdmin = _daUsers.find(function(u) { return u.password === adminPw && u.role === 'admin' && u.active; });
+  if (!_daAdmin) { showToast('관리자 비밀번호가 올바르지 않습니다.', 'error'); return; }
   var ids = whInboundData.map(function(r){ return r.id; });
   var lotNos = whInboundData.map(function(r){ return r.lot_no || ''; }).filter(function(l){ return !!l; });
   var successCount = 0;
@@ -1104,7 +1114,7 @@ async function whSaveInEdit() {
   }
 }
 
-// ── 출고 등록 ─────────────────────────────────────
+// ── 출고 등록 (레거시 - 미사용, whHandleOutSubmit으로 대체됨) ─────────────────────────────────────
 async function whSubmitOutbound() {
   var fields = ['whout_warehouse','whout_location','whout_item_name','whout_qty','whout_unit','whout_date'];
   var data = {};
@@ -3999,6 +4009,20 @@ async function whSaveMove() {
       var recId = updated.id;
       delete updated.id;
       await apiPut('wh_inbound', recId, updated);
+    }
+    // 출고 레코드에서도 위치 업데이트 (재고검증 탭 정합성 보장)
+    var outTargets = whOutboundData.filter(function(r) {
+      return r.location === fromLoc && (r.item_name || '미상') === itemName;
+    });
+    for (var j = 0; j < outTargets.length; j++) {
+      var oRec = outTargets[j];
+      var oUpdated = Object.assign({}, oRec, {
+        warehouse: toWh,
+        location: toLoc
+      });
+      var oRecId = oUpdated.id;
+      delete oUpdated.id;
+      try { await apiPut('wh_outbound', oRecId, oUpdated); } catch(oe) { /* 출고 레코드 업데이트 실패는 무시 */ }
     }
     showToast('이동 완료: ' + fromLoc + ' → ' + toLoc + ' (' + targets.length + '건)', 'success');
     whCloseMoveModal();
