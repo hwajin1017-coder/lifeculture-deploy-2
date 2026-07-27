@@ -2212,9 +2212,22 @@ async function whItemNameFilter(query) {
       codeTxt + typeBadge +
       '</div>';
   }).join('');
-  dropdown.style.display = 'block';
-}
+    dropdown.style.display = 'block';
 
+  // 타이핑 중에도 사용자가 입력한 품목명과 일치하는 위치를 실시간 갱신
+  // (exact match일 때만 갱신하여 성능 유지)
+  var whInElF = document.getElementById('whin_warehouse');
+  if (whInElF && whInElF.value && q.length >= 2) {
+    var exactMatch = filtered.find(function(p) {
+      return (p.product_name || '').toLowerCase() === q;
+    });
+    if (exactMatch) {
+      var nameElF = document.getElementById('whin_item_name');
+      if (nameElF) nameElF.value = exactMatch.product_name;
+      whBuildLocationSelect('whin');
+    }
+  }
+}
 function whSelectItemName(el) {
   var productName = el ? el.getAttribute('data-name') : '';
   var productType = el ? el.getAttribute('data-type') : '';
@@ -2244,8 +2257,27 @@ function whSelectItemName(el) {
   // 환산 수량 표시 업데이트
   whInCalcQty();
   // 위치 드롭다운 재빌드: 같은 제품 있는 위치 우선 표시
+  // 창고가 선택되지 않았어도 같은 제품이 있는 창고를 자동 감지하여 갱신
   var whInEl = document.getElementById('whin_warehouse');
-  if (whInEl && whInEl.value) whBuildLocationSelect('whin');
+  if (whInEl) {
+    if (whInEl.value) {
+      whBuildLocationSelect('whin');
+    } else {
+      // 창고 미선택 시: 해당 품목이 있는 창고를 자동 감지
+      var stockMapAuto = whCalcStock();
+      var autoWh = null;
+      Object.keys(stockMapAuto).forEach(function(loc) {
+        var items = stockMapAuto[loc] || {};
+        if (items[productName] && (Number(items[productName].qty) || 0) > 0) {
+          autoWh = loc.startsWith('C') ? 'C' : 'W';
+        }
+      });
+      if (autoWh) {
+        whInEl.value = autoWh;
+        whBuildLocationSelect('whin');
+      }
+    }
+  }
 }
 
 // ── 입고 환산 수량 계산 및 표시 ──────────────────────────
