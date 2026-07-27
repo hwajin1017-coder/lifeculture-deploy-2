@@ -873,6 +873,8 @@
               <button class="btn" id="whInDeleteSelectedBtn" onclick="whInDeleteSelected()" style="background:#fff5f5;color:#e74c3c;border:1px solid #e74c3c;font-size:12px;padding:5px 10px;display:none"><i class="fas fa-trash"></i> 선택 삭제 (<span id="whInSelectedCount">0</span>건)</button>
               <button class="btn" onclick="whInDeleteAll()" style="background:#fdedec;color:#c0392b;border:1px solid #c0392b;font-size:12px;padding:5px 10px"><i class="fas fa-trash-alt"></i> 전체 삭제</button>
               <button class="btn btn-secondary" onclick="whExport('in')"><i class="fas fa-file-excel"></i> 엑셀</button>
+              <button class="btn" onclick="whBackupData('in')" style="background:#e8f4fd;color:#2980b9;border:1px solid #2980b9;font-size:12px;padding:5px 10px" title="입고 데이터를 JSON 파일로 백업"><i class="fas fa-download"></i> 백업</button>
+              <button class="btn" onclick="whRestoreData('in')" style="background:#fef9e7;color:#d68910;border:1px solid #d68910;font-size:12px;padding:5px 10px" title="JSON 백업 파일로 입고 데이터 복구 (관리자 전용)"><i class="fas fa-upload"></i> 복구</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -1024,9 +1026,11 @@
         <div class="table-section" style="margin-top:20px">
           <div class="table-header">
             <div class="table-title"><i class="fas fa-history" style="color:#e74c3c"></i> 최근 창고 출고 이력</div>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="text" id="whOutSearch" placeholder="품목명 검색..." oninput="whRenderOutTable()" style="padding:6px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px" />
               <button class="btn btn-secondary" onclick="whExport('out')"><i class="fas fa-file-excel"></i> 엑셀</button>
+              <button class="btn" onclick="whBackupData('out')" style="background:#e8f4fd;color:#2980b9;border:1px solid #2980b9;font-size:12px;padding:5px 10px" title="출고 데이터를 JSON 파일로 백업"><i class="fas fa-download"></i> 백업</button>
+              <button class="btn" onclick="whRestoreData('out')" style="background:#fef9e7;color:#d68910;border:1px solid #d68910;font-size:12px;padding:5px 10px" title="JSON 백업 파일로 출고 데이터 복구 (관리자 전용)"><i class="fas fa-upload"></i> 복구</button>
             </div>
           </div>
           <div class="table-wrap">

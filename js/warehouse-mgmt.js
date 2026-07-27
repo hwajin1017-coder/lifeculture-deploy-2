@@ -6606,3 +6606,196 @@ function cpRenderBundlePreview() {
 function cpInitOnTabSwitch() {
   if (typeof cpInit === 'function') cpInit();
 }
+
+// ============================================================
+// 입고/출고 데이터 백업 & 복구 기능
+// ============================================================
+
+// ── 백업: 현재 데이터를 JSON 파일로 다운로드 ──────────────
+function whBackupData(type) {
+  var data, filename, label;
+  if (type === 'in') {
+    data = whInboundData;
+    label = '입고';
+    filename = 'wh_inbound_backup_' + _whFormatDateStr(new Date()) + '.json';
+  } else {
+    data = whOutboundData;
+    label = '출고';
+    filename = 'wh_outbound_backup_' + _whFormatDateStr(new Date()) + '.json';
+  }
+  if (!data || data.length === 0) {
+    showToast(label + ' 데이터가 없습니다.', 'warning');
+    return;
+  }
+  var payload = {
+    backupType: type === 'in' ? 'wh_inbound' : 'wh_outbound',
+    backupDate: new Date().toISOString(),
+    count: data.length,
+    data: data
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  showToast(label + ' 데이터 ' + data.length + '건 백업 파일을 다운로드했습니다.', 'success');
+}
+
+function _whFormatDateStr(d) {
+  var y = d.getFullYear();
+  var mo = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  var h = String(d.getHours()).padStart(2, '0');
+  var mi = String(d.getMinutes()).padStart(2, '0');
+  return y + mo + day + '_' + h + mi;
+}
+
+// ── 복구: JSON 파일 업로드 후 DB에 복원 (관리자 전용) ──────
+function whRestoreData(type) {
+  var user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  if (!user || user.role !== 'admin') {
+    _whShowRestoreAdminModal(type);
+    return;
+  }
+  var label = type === 'in' ? '입고' : '출고';
+  var collection = type === 'in' ? 'wh_inbound' : 'wh_outbound';
+  _whOpenRestoreFilePicker(type, label, collection);
+}
+
+function _whShowRestoreAdminModal(type) {
+  var label = type === 'in' ? '입고' : '출고';
+  var modalId = 'whRestoreAdminModal';
+  var existing = document.getElementById(modalId);
+  if (existing) existing.remove();
+  var m = document.createElement('div');
+  m.id = modalId;
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+  m.innerHTML =
+    '<div style="background:#fff;border-radius:14px;width:90%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2);overflow:hidden">' +
+      '<div style="background:linear-gradient(135deg,#d68910,#b7770d);padding:16px 20px;display:flex;align-items:center;justify-content:space-between">' +
+        '<h3 style="color:#fff;font-size:15px;margin:0"><i class="fas fa-key"></i> 관리자 인증 — ' + label + ' 복구</h3>' +
+        '<button onclick="document.getElementById(\'' + modalId + '\').remove()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:0.7">&times;</button>' +
+      '</div>' +
+      '<div style="padding:20px">' +
+        '<div style="font-size:13px;color:#555;margin-bottom:16px">' + label + ' 데이터 복구는 관리자 전용 기능입니다.<br>관리자 비밀번호를 입력하세요.</div>' +
+        '<div style="margin-bottom:12px">' +
+          '<label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:5px">관리자 이메일</label>' +
+          '<input type="email" id="whRestoreEmail" placeholder="admin@lifeculture.co.kr" value="admin@lifeculture.co.kr" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" />' +
+        '</div>' +
+        '<div style="margin-bottom:16px">' +
+          '<label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:5px">관리자 비밀번호 <span style="color:#e74c3c">*</span></label>' +
+          '<input type="password" id="whRestorePassword" placeholder="비밀번호 입력" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" onkeydown="if(event.key===\'Enter\')_whVerifyRestoreAdmin(\'' + type + '\')" autofocus />' +
+        '</div>' +
+        '<div id="whRestoreError" style="display:none;color:#e74c3c;font-size:12px;margin-bottom:10px;padding:8px;background:#fdedec;border-radius:6px"></div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button onclick="document.getElementById(\'' + modalId + '\').remove()" style="flex:1;padding:10px;background:#f8f9fa;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px">취소</button>' +
+          '<button onclick="_whVerifyRestoreAdmin(\'' + type + '\')" style="flex:1;padding:10px;background:#d68910;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700"><i class="fas fa-unlock"></i> 인증</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(m);
+  setTimeout(function() { var pw = document.getElementById('whRestorePassword'); if (pw) pw.focus(); }, 100);
+}
+
+function _whVerifyRestoreAdmin(type) {
+  var emailEl = document.getElementById('whRestoreEmail');
+  var pwEl = document.getElementById('whRestorePassword');
+  var errEl = document.getElementById('whRestoreError');
+  if (!pwEl) return;
+  var email = (emailEl ? emailEl.value : 'admin@lifeculture.co.kr').trim();
+  var password = pwEl.value;
+  var USERS_KEY = 'lc_users';
+  var users = [];
+  try { users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch(e) {}
+  if (users.length === 0 && typeof DEFAULT_USERS !== 'undefined') users = DEFAULT_USERS;
+  var adminUser = users.find(function(u) {
+    return u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.role === 'admin' && u.active;
+  });
+  if (!adminUser) {
+    if (errEl) { errEl.textContent = '관리자 이메일 또는 비밀번호가 올바르지 않습니다.'; errEl.style.display = 'block'; }
+    if (pwEl) { pwEl.value = ''; pwEl.focus(); }
+    return;
+  }
+  var modal = document.getElementById('whRestoreAdminModal');
+  if (modal) modal.remove();
+  var label = type === 'in' ? '입고' : '출고';
+  var collection = type === 'in' ? 'wh_inbound' : 'wh_outbound';
+  _whOpenRestoreFilePicker(type, label, collection);
+}
+
+function _whOpenRestoreFilePicker(type, label, collection) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.onchange = function() {
+    var file = input.files[0];
+    if (!file) { input.remove(); return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      input.remove();
+      try {
+        var payload = JSON.parse(e.target.result);
+        if (!payload.data || !Array.isArray(payload.data)) {
+          showToast('유효하지 않은 백업 파일입니다.', 'error');
+          return;
+        }
+        var expectedType = type === 'in' ? 'wh_inbound' : 'wh_outbound';
+        if (payload.backupType && payload.backupType !== expectedType) {
+          if (!confirm('백업 파일 유형이 다릅니다 (파일: ' + payload.backupType + ', 대상: ' + expectedType + ').\n계속 진행하시겠습니까?')) return;
+        }
+        var count = payload.data.length;
+        var backupDate = payload.backupDate ? new Date(payload.backupDate).toLocaleString('ko-KR') : '알 수 없음';
+        if (!confirm(
+          '[' + label + ' 데이터 복구]\n\n' +
+          '백업 일시: ' + backupDate + '\n' +
+          '복구할 데이터: ' + count + '건\n\n' +
+          '⚠️ 기존 데이터에 추가됩니다 (기존 데이터는 삭제되지 않음).\n' +
+          '동일한 ID가 있으면 덮어씁니다.\n\n' +
+          '계속 진행하시겠습니까?'
+        )) return;
+        _whDoRestore(payload.data, collection, label);
+      } catch(err) {
+        showToast('파일 파싱 오류: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+async function _whDoRestore(records, collection, label) {
+  if (!records || records.length === 0) {
+    showToast('복구할 데이터가 없습니다.', 'warning');
+    return;
+  }
+  showToast('복구 중... (' + records.length + '건)', 'info');
+  var success = 0, fail = 0;
+  for (var i = 0; i < records.length; i++) {
+    var rec = Object.assign({}, records[i]);
+    var docId = rec.id;
+    delete rec.id;
+    try {
+      if (docId) {
+        await apiPut(collection, docId, rec);
+      } else {
+        await apiPost(collection, rec);
+      }
+      success++;
+    } catch(e) {
+      console.warn('복구 실패 [' + docId + ']:', e);
+      fail++;
+    }
+  }
+  var msg = label + ' 데이터 복구 완료: ' + success + '건 성공';
+  if (fail > 0) msg += ', ' + fail + '건 실패';
+  showToast(msg, fail > 0 ? 'warning' : 'success');
+  await whReloadAll();
+  if (collection === 'wh_inbound') whRenderInTable();
+  else whRenderOutTable();
+  if (typeof loadLogisticsData === 'function') loadLogisticsData();
+}
