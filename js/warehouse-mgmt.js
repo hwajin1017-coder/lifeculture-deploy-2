@@ -4961,7 +4961,7 @@ function whFilterFullStocktakeGrid() {
     var cards2 = row.querySelectorAll('.wh-full-st-card');
     var anyVisible = false;
     cards2.forEach(function(c) { if (c.style.display !== 'none') anyVisible = true; });
-    row.style.display = anyVisible ? '' : 'none';
+    row.style.display = anyVisible ? 'flex' : 'none';
     // 라벨도 동기화
     var label = inner.querySelector('.wh-full-st-zone-label[data-zone-key="' + zoneKey + '"]');
     if (label) label.style.display = anyVisible ? '' : 'none';
