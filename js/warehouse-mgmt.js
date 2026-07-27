@@ -4701,7 +4701,7 @@ function whRenderFullStocktakeGrid() {
     var rowWrap = document.createElement('div');
     rowWrap.className = 'wh-full-st-zone-row';
     rowWrap.dataset.zoneKey = zoneKey;
-    rowWrap.style.cssText = 'display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:4px 0 6px;align-items:flex-start';
+    rowWrap.style.cssText = 'display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:visible;padding:4px 0 8px;align-items:flex-start;width:100%;box-sizing:border-box;-webkit-overflow-scrolling:touch';
 
     // 단(level) 순서대로 카드 배치
     var sortedLocs = zoneLocs.slice().sort(function(a, b) {
@@ -4710,9 +4710,7 @@ function whRenderFullStocktakeGrid() {
     });
     sortedLocs.forEach(function(l) {
       var card = whCreateFullStocktakeCard(l, stockMap);
-      card.style.flex = '0 0 200px'; // 고정 너비로 가로 배치
-      card.style.minWidth = '180px';
-      card.style.maxWidth = '220px';
+      card.style.cssText += ';flex:0 0 200px;min-width:180px;max-width:220px;box-sizing:border-box';
       rowWrap.appendChild(card);
     });
 
