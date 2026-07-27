@@ -20,7 +20,7 @@ function whInvalidateMapCache() { _whMapCache.stockHash = null; }
 // A구역: A1~A4, B구역: B1~B5, C구역: C1~C4, D구역: D1~D4, E구역: E1~E4
 // 구역당 파렛트 2개 (예외: A1, B5 → 1개), 3단 적재 → 총 120PT
 const COLD_ZONE_COUNTS = { A:4, B:5, C:4, D:4, E:4 };
-const COLD_SINGLE_PALLET = ['A1','B5'];
+const COLD_SINGLE_PALLET = ['A1','B5','D4'];
 const COLD_LOCATIONS = (function() {
   const locs = [];
   Object.entries(COLD_ZONE_COUNTS).forEach(function(entry) {
