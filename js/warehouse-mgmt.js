@@ -4512,6 +4512,7 @@ function whOutHandleFile(file) {
 var _whFullStocktakeUnlocked = false;
 var _whFullStocktakeWarehouse = 'C'; // 현재 선택된 창고 ('C' or 'W')
 var _whFullStocktakeDragSrc = null; // 드래그 소스 카드 정보 { locCode, itemName }
+var _whFullStPendingInputs = {}; // 재렌더링 중 입력값 임시 보존 { safeId: value }
 
 // ── 관리자 허가 요청 모달 ──────────────────────────────────
 function whRequestFullStocktakeApproval() {
@@ -4672,6 +4673,11 @@ function whRenderFullStocktakeGrid() {
   var stockMap = whCalcStock();
   var locs = _whFullStocktakeWarehouse === 'C' ? COLD_LOCATIONS : WARM_LOCATIONS;
   var prefix = _whFullStocktakeWarehouse === 'C' ? 'C' : 'W';
+  // ── 재렌더링 전 현재 입력값 보존 ──
+  inner.querySelectorAll('input[id^="wfst_"]').forEach(function(inp) {
+    if (inp.id.startsWith('wfst_diff_') || inp.id.startsWith('wfst_name_')) return;
+    if (inp.value !== '') _whFullStPendingInputs[inp.id] = inp.value;
+  });
   inner.innerHTML = '';
   // ── 컨테이너를 flex column으로 변경 (구역별 가로 한 줄) ──
   inner.style.cssText = 'display:flex;flex-direction:column;gap:6px';
@@ -4716,6 +4722,14 @@ function whRenderFullStocktakeGrid() {
 
     inner.appendChild(zoneLabel);
     inner.appendChild(rowWrap);
+  });
+  // ── 보존된 입력값 복원 ──
+  Object.keys(_whFullStPendingInputs).forEach(function(inputId) {
+    var el = document.getElementById(inputId);
+    if (el && el.value === '') {
+      el.value = _whFullStPendingInputs[inputId];
+      whFullStCalcDiff(el); // 차이 표시 업데이트
+    }
   });
   whFilterFullStocktakeGrid();
 }
@@ -5625,6 +5639,8 @@ async function whSaveFullStocktake() {
       });
     }
     showToast('전체 동기화 완료', 'success');
+    // 실사 저장 완료 후 임시 입력값 초기화
+    _whFullStPendingInputs = {};
     // 그리드 재렌더링 (스크롤 위치 유지)
     var gridEl = document.getElementById('whFullStocktakeGridInner');
     var scrollTop = gridEl ? (gridEl.closest('[style*="overflow"]') || document.documentElement).scrollTop : 0;
