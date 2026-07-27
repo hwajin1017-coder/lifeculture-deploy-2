@@ -4765,7 +4765,6 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
     // 빈 위치: 품목명+수량 직접 입력 폼 표시
     var emptyLocSafeId = locCode.replace(/[^a-zA-Z0-9]/g, '_');
     itemsHtml =
-      '<div style="font-size:11px;color:#bbb;text-align:center;padding:4px 0 6px">빈 위치</div>' +
       '<div id="wfst_new_wrap_' + emptyLocSafeId + '" style="background:#f0fff4;border:1px dashed #27ae60;border-radius:6px;padding:6px 8px">' +
         '<div style="font-size:10px;color:#27ae60;font-weight:700;margin-bottom:5px">+ 품목 직접 입력</div>' +
         '<input type="text" id="wfst_new_name_' + emptyLocSafeId + '" placeholder="품목명" ' +
