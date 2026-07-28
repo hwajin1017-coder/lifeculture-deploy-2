@@ -106,7 +106,8 @@ function getSidebarHTML(activePage = '') {
         { label: '원부재료 마스터', href: 'materials-master.html', icon: 'fa-cubes', menu: 'materials-master' },
         { label: '원료수불부 (자체생산)', href: 'raw-materials.html', icon: 'fa-box-open', menu: 'raw-materials' },
         { label: '거래처 정보', href: 'vendors.html', icon: 'fa-handshake', menu: 'vendors' },
-        { label: '물류관리 (수입/OEM/자체)', href: 'logistics.html', icon: 'fa-truck', menu: 'logistics' }
+        { label: '물류관리 (수입/OEM/자체)', href: 'logistics.html', icon: 'fa-truck', menu: 'logistics' },
+        { label: '물류관리2 (일반/저온창고)', href: 'logistics2.html', icon: 'fa-warehouse', menu: 'logistics2' }
       ]
     },
     {
