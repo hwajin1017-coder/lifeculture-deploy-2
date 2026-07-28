@@ -137,6 +137,11 @@ async function whLoadAll() {
         wh_stocktake: whStocktakeData
       });
     }
+    // ── 전체 실사 모드 활성 시 그리드 자동 동기화 ──
+    // 입고/출고/수정/삭제 후 whReloadAll이 호출되면 실사 그리드도 최신 데이터로 갱신
+    if (_whFullStocktakeUnlocked) {
+      whRenderFullStocktakeGrid();
+    }
   } catch(e) {
     console.error('[warehouse-mgmt] 데이터 로드 실패:', e);
   }
@@ -4763,7 +4768,7 @@ function whVerifyAdminApproval() {
   whGrantFullStocktake();
 }
 
-function whGrantFullStocktake() {
+async function whGrantFullStocktake() {
   _whFullStocktakeUnlocked = true;
   // UI 업데이트
   var statusEl = document.getElementById('whFullStocktakeStatus');
@@ -4776,21 +4781,20 @@ function whGrantFullStocktake() {
   if (saveBtn) saveBtn.style.display = '';
   var lockBtn = document.getElementById('whFullStocktakeLockBtn');
   if (lockBtn) lockBtn.style.display = '';
-
   // 잠금 오버레이 숨기고 그리드 표시
   var overlay = document.getElementById('whFullStocktakeLockOverlay');
   if (overlay) overlay.style.display = 'none';
   var grid = document.getElementById('whFullStocktakeGrid');
   if (grid) grid.style.display = '';
-
   // 오늘 날짜 설정
   var dateEl = document.getElementById('whFullStocktakeDate');
   if (dateEl && !dateEl.value) {
     dateEl.value = new Date().toISOString().split('T')[0];
   }
-
-  // 그리드 렌더링
-  whRenderFullStocktakeGrid();
+  // 실사 모드 진입 시 최신 데이터 로드 후 그리드 렌더링
+  // (입고 후 바로 실사 모드 진입 시 새 입고 데이터가 반영되도록)
+  showToast('실사 모드 데이터 로딩 중...', 'info');
+  await whReloadAll();
   showToast('전체 위치코드 실사 모드가 활성화되었습니다.', 'success');
 }
 
@@ -5236,8 +5240,17 @@ async function whFullStItemMove(fromLoc, itemName, ids) {
         delete updated.id;
         await apiPut('wh_inbound', ids[i], updated);
       }
-      // 출고 레코드는 이동하지 않음 (재고 = 입고 - 출고 계산 유지)
-      // 출고는 원래 위치에 그대로 두어야 재고 계산이 정확함
+      // 해당 품목의 출고 레코드도 함께 이동 (재고 계산 정합성 보장)
+      // 입고만 이동하고 출고가 fromLoc에 남으면 fromLoc에서 음수 재고 발생
+      var outTargets = whOutboundData.filter(function(r) {
+        return r.location === fromLoc && (r.item_name || '미상') === itemName;
+      });
+      for (var j = 0; j < outTargets.length; j++) {
+        var oRec = outTargets[j];
+        var oUpdated = Object.assign({}, oRec, { location: toLoc, warehouse: toLoc.charAt(0) });
+        var oRecId = oUpdated.id; delete oUpdated.id;
+        try { await apiPut('wh_outbound', oRecId, oUpdated); } catch(oe) { /* 출고 레코드 업데이트 실패는 무시 */ }
+      }
       showToast('이동 완료: ' + itemName + ' (' + fromLoc + ' → ' + toLoc + ')', 'success');
       whInvalidateMapCache();
       await whReloadAll();
@@ -5439,8 +5452,8 @@ async function whFullStAddItemSave(locCode, modalId) {
   var today = new Date().toISOString().split('T')[0];
   var dateShort = today.replace(/-/g,'').slice(2);
   var prefix = 'WH-ADJ-' + dateShort;
-  var existingAdj = [];
-  try { existingAdj = (await apiGetAll('wh_inbound')).filter(function(r) { return r.lot_no && r.lot_no.startsWith(prefix); }); } catch(e2) {}
+  // 메모리 데이터 사용 (apiGetAll 재호출 제거 - seq 번호 오류 방지)
+  var existingAdj = (whInboundData || []).filter(function(r) { return r.lot_no && r.lot_no.startsWith(prefix); });
   var seq = existingAdj.length + 1;
   var lotNo = prefix + '-' + String(seq).padStart(3,'0');
   try {
@@ -5484,8 +5497,8 @@ async function whFullStNewItemSave(locCode, safeId) {
   var today = new Date().toISOString().split('T')[0];
   var dateShort = today.replace(/-/g,'').slice(2);
   var prefix = 'WH-ADJ-' + dateShort;
-  var existingAdj = [];
-  try { existingAdj = (await apiGetAll('wh_inbound')).filter(function(r) { return r.lot_no && r.lot_no.startsWith(prefix); }); } catch(e2) {}
+  // 메모리 데이터 사용 (apiGetAll 재호출 제거 - seq 번호 오류 방지)
+  var existingAdj = (whInboundData || []).filter(function(r) { return r.lot_no && r.lot_no.startsWith(prefix); });
   var seq = existingAdj.length + 1;
   var lotNo = prefix + '-' + String(seq).padStart(3,'0');
   try {
