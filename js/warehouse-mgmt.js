@@ -10,6 +10,10 @@ var whInboundData = [];
 var whOutboundData = [];
 var whStocktakeData = [];
 var whCurrentMap = 'cold';
+// ★ 실사 기준일: 전체 위치코드 실사 완료 시 설정, null이면 전체 데이터 기준
+// 설정 시: 실사일자 이전 데이터 + 실사 조정 레코드만 재고에 반영
+var _whStocktakeBaseDate = null; // 'YYYY-MM-DD' 형식
+var _whStocktakeBaseDateLoaded = false; // 로드 완료 여부
 
 // ── 배치도 HTML 캐시 ──────────────────────────────
 // 재고 데이터가 변경되지 않으면 이전 렌더링 결과를 재사용
@@ -94,13 +98,25 @@ async function whLoadAll() {
       apiGetAll('wh_inbound'),
       apiGetAll('wh_outbound'),
       apiGetAll('wh_stocktake'),
-      apiGetAll('products')
+      apiGetAll('products'),
+      apiGetAll('wh_stocktake_config')
     ]);
     whInboundData = results[0] || [];
     whOutboundData = results[1] || [];
     whStocktakeData = results[2] || [];
     // 제품마스터 캐시 선로딩 (환산 표시용)
     _whProductMasterCache = results[3] || [];
+    // ★ 실사 기준일 로드 (wh_stocktake_config 콜렉션)
+    var configData = results[4] || [];
+    var latestConfig = configData.sort(function(a,b){ return (b.updated_at||0) - (a.updated_at||0); })[0];
+    if (latestConfig && latestConfig.stocktake_base_date) {
+      _whStocktakeBaseDate = latestConfig.stocktake_base_date;
+    } else {
+      _whStocktakeBaseDate = null;
+    }
+    _whStocktakeBaseDateLoaded = true;
+    // 실사 기준일 설정 시 UI 표시 갱실
+    whUpdateStocktakeBaseDateUI();
     // InventoryStore 공유 스토어에 창고 데이터 저장
     if (window.InventoryStore) {
       window.InventoryStore.setAll({
@@ -351,10 +367,19 @@ function whBuildLocationSelect(prefix) {
 }
 
 // ── 재고 계산 ─────────────────────────────────────
+// _whStocktakeBaseDate 가 설정된 경우:
+//   1) 실사일자 이전 입고 레코드만 반영 (단, 실사조정/실사추가/실사삭제 레코드는 날짜 무관 포함)
+//   2) 실사일자 이전 출고 레코드만 차감 (단, 실사조정/실사삭제 출고 레코드는 날짜 무관 포함)
 function whCalcStock() {
+  var baseDate = _whStocktakeBaseDate || null;
   var stockMap = {};
   whInboundData.forEach(function(r) {
     if (!r.location) return;
+    // 실사 기준일 필터: 기준일 이후 입고는 제외 (단, 실사 조정 레코드는 항상 포함)
+    if (baseDate) {
+      var isAdjRecord = (r.inbound_type === '재고조정' || r.manager === '실사조정' || r.manager === '실사추가');
+      if (!isAdjRecord && (r.inbound_date || '') > baseDate) return;
+    }
     if (!stockMap[r.location]) stockMap[r.location] = {};
     var key = r.item_name || '미상';
     if (!stockMap[r.location][key]) {
@@ -368,6 +393,11 @@ function whCalcStock() {
     }
   });
   whOutboundData.forEach(function(r) {
+    // 실사 기준일 필터: 기준일 이후 출고는 제외 (단, 실사 조정/삭제 레코드는 항상 포함)
+    if (baseDate) {
+      var isAdjOut = (r.destination === '재고조정' || r.destination === '실사삭제' || r.manager === '실사조정');
+      if (!isAdjOut && (r.outbound_date || '') > baseDate) return;
+    }
     var outQty = Number(r.qty) || 0;
     var outItem = r.item_name || '미상';
     // 1순위: 정확한 위치+품목명 매칭
@@ -5383,23 +5413,36 @@ async function whFullStDeleteItem(locCode, itemName, inboundIds) {
         .reduce(function(s, r) { return s + (Number(r.qty) || 0); }, 0)
     : 0;
   var netQty = totalQty - outQty;
-  if (!confirm('[⚠️ 주의] ' + locCode + ' 위치의 "' + itemName + '" 재고를 삭제합니다.\n현재고: ' + netQty + '\n입고 레코드 ' + inboundIds.length + '건이 모두 삭제됩니다.\n\n계속하시겠습니까?')) return;
+  if (netQty <= 0) {
+    showToast(locCode + ' / ' + itemName + ' 은(는) 이미 재고가 없습니다.', 'warning');
+    return;
+  }
+  if (!confirm('[⚠️ 주의] ' + locCode + ' 위치의 "' + itemName + '" 재고를 실사 삭제합니다.\n현재고: ' + netQty + '\n\n입고 이력은 보존되며, 재고 차감 출고 레코드가 생성됩니다.\n계속하시겠습니까?')) return;
   try {
-    for (var i = 0; i < inboundIds.length; i++) {
-      await apiDelete('wh_inbound', inboundIds[i]);
-    }
-    // 연관 출고 레코드도 삭제 (선택)
-    var outRecs = whOutboundData
-      ? whOutboundData.filter(function(r) { return r.location === locCode && r.item_name === itemName; })
-      : [];
-    if (outRecs.length > 0) {
-      if (confirm('연관된 출고 레코드 ' + outRecs.length + '건도 삭제하시겠습니까?\n(아니오를 누르면 출고 레코드는 유지됩니다)')) {
-        for (var j = 0; j < outRecs.length; j++) {
-          await apiDelete('wh_outbound', outRecs[j].id);
-        }
-      }
-    }
-    showToast('삭제 완료: ' + locCode + ' / ' + itemName, 'success');
+    // ★ 입고 이력 보존 정책: apiDelete 대신 출고 레코드로 재고 차감
+    var today = new Date().toISOString().split('T')[0];
+    var dateShort = today.replace(/-/g,'').slice(2);
+    var adjPrefix = 'WH-ADJ-' + dateShort;
+    var existingAdj = (whInboundData || []).filter(function(r) { return r.lot_no && r.lot_no.startsWith(adjPrefix); });
+    var seq = existingAdj.length + 1;
+    var adjLot = adjPrefix + '-' + String(seq).padStart(3,'0');
+    var origUnit = inboundIds.length > 0
+      ? ((whInboundData.find(function(r){ return r.id === inboundIds[0]; }) || {}).unit || 'ea')
+      : 'ea';
+    await apiPost('wh_outbound', {
+      lot_no: adjLot,
+      outbound_date: today,
+      warehouse: locCode ? locCode.charAt(0) : 'W',
+      location: locCode,
+      item_name: itemName,
+      qty: netQty,
+      unit: origUnit,
+      destination: '실사삭제',
+      manager: '실사조정',
+      memo: '전체실사 모드 품목 삭제 (입고이력 보존, 재고차감: ' + netQty + origUnit + ')',
+      created_at: Date.now()
+    });
+    showToast('삭제 완료: ' + locCode + ' / ' + itemName + ' (입고 이력 보존됨)', 'success');
     whInvalidateMapCache();
     await whReloadAll();
     if (_whFullStocktakeUnlocked) whRenderFullStocktakeGrid();
@@ -5809,6 +5852,31 @@ async function whSaveFullStocktake() {
     var msg = '전체 실사 저장 완료 (' + records.length + '건)';
     if (adjCreated > 0) msg += ' — 재고 자동 조정 ' + adjCreated + '건 반영';
     showToast(msg, 'success');
+
+    // ★ 실사 기준일을 wh_stocktake_config에 저장 → 전체현황 재고 연동
+    try {
+      var existingConfigs = await apiGetAll('wh_stocktake_config');
+      var prevConfig = (existingConfigs || []).sort(function(a,b){ return (b.updated_at||0)-(a.updated_at||0); })[0];
+      var configPayload = {
+        stocktake_base_date: date,
+        stocktake_records_count: records.length,
+        adj_created: adjCreated,
+        updated_at: Date.now(),
+        updated_by: (typeof getCurrentUser === 'function' ? (getCurrentUser()||{}).name : '') || '관리자'
+      };
+      if (prevConfig && prevConfig.id) {
+        var prevId = prevConfig.id;
+        delete configPayload.id;
+        await apiPut('wh_stocktake_config', prevId, configPayload);
+      } else {
+        await apiPost('wh_stocktake_config', configPayload);
+      }
+      // 메모리 실사 기준일 즉시 적용
+      _whStocktakeBaseDate = date;
+      whUpdateStocktakeBaseDateUI();
+    } catch(cfgErr) {
+      console.warn('실사 기준일 저장 실패:', cfgErr);
+    }
 
     // ── 실사 저장 완료 후 임시 입력값 초기화 ──
     _whFullStPendingInputs = {};
@@ -7009,4 +7077,40 @@ async function _whDoRestore(records, collection, label) {
   if (collection === 'wh_inbound') whRenderInTable();
   else whRenderOutTable();
   if (typeof loadLogisticsData === 'function') loadLogisticsData();
+}
+
+// ── 실사 기준일 UI 배너 갱신 ─────────────────────────────
+function whUpdateStocktakeBaseDateUI() {
+  var banner = document.getElementById('whStocktakeBaseDateBanner');
+  if (!banner) return;
+  if (_whStocktakeBaseDate) {
+    banner.style.display = 'flex';
+    var dateEl = banner.querySelector('#whStocktakeBaseDateText');
+    if (dateEl) dateEl.textContent = _whStocktakeBaseDate + ' 기준 실사 재고 적용 중';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// ── 실사 기준일 초기화 (관리자 전용) ─────────────────────
+async function whClearStocktakeBaseDate() {
+  if (!confirm('실사 기준일을 초기화하면 전체 입출고 데이터 기준으로 재고가 표시됩니다.\n계속하시겠습니까?')) return;
+  try {
+    var existingConfigs = await apiGetAll('wh_stocktake_config');
+    var prevConfig = (existingConfigs || []).sort(function(a,b){ return (b.updated_at||0)-(a.updated_at||0); })[0];
+    if (prevConfig && prevConfig.id) {
+      await apiPut('wh_stocktake_config', prevConfig.id, {
+        stocktake_base_date: null,
+        updated_at: Date.now(),
+        updated_by: (typeof getCurrentUser === 'function' ? (getCurrentUser()||{}).name : '') || '관리자'
+      });
+    }
+    _whStocktakeBaseDate = null;
+    whUpdateStocktakeBaseDateUI();
+    whInvalidateMapCache();
+    await whReloadAll();
+    showToast('실사 기준일이 초기화되었습니다. 전체 데이터 기준으로 재고를 표시합니다.', 'success');
+  } catch(e) {
+    showToast('초기화 실패: ' + e.message, 'error');
+  }
 }
