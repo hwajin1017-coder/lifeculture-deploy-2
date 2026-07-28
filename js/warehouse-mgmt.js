@@ -400,25 +400,43 @@ function whCalcStock() {
     }
     var outQty = Number(r.qty) || 0;
     var outItem = r.item_name || '미상';
-    // 1순위: 정확한 위치+품목명 매칭
+    var remaining = outQty;
+
+    // 1순위: 정확한 위치+품목명 매칭 (해당 위치에 재고가 남아있는 경우만 적용)
     if (r.location && stockMap[r.location] && stockMap[r.location][outItem]) {
-      stockMap[r.location][outItem].qty -= outQty;
-      return;
-    }
-    // 2순위: 위치가 없거나 매칭 안되면 품목명 기준으로 소비기한 짧은 순으로 차감
-    var bestLoc = null;
-    var bestExpiry = '9999-99-99';
-    Object.keys(stockMap).forEach(function(loc) {
-      if (stockMap[loc][outItem] && stockMap[loc][outItem].qty > 0) {
-        var exp = stockMap[loc][outItem].expiry || '9999-99-99';
-        if (!bestLoc || exp < bestExpiry) {
-          bestLoc = loc;
-          bestExpiry = exp;
-        }
+      var locQty = stockMap[r.location][outItem].qty;
+      if (locQty > 0) {
+        var deduct = Math.min(locQty, remaining);
+        stockMap[r.location][outItem].qty -= deduct;
+        remaining -= deduct;
       }
-    });
-    if (bestLoc) {
-      stockMap[bestLoc][outItem].qty -= outQty;
+      // 해당 위치 재고가 부족하면 나머지는 2순위로 소비기한 짧은 순 차감
+    }
+
+    // 2순위: 위치 없거나 재고 부족 시 품목명 기준 소비기한 짧은 순으로 차감
+    while (remaining > 0) {
+      var bestLoc = null;
+      var bestExpiry = '9999-99-99';
+      Object.keys(stockMap).forEach(function(loc) {
+        // 1순위에서 이미 차감한 위치는 제외
+        if (r.location && loc === r.location) return;
+        if (stockMap[loc][outItem] && stockMap[loc][outItem].qty > 0) {
+          var exp = stockMap[loc][outItem].expiry || '9999-99-99';
+          if (!bestLoc || exp < bestExpiry) {
+            bestLoc = loc;
+            bestExpiry = exp;
+          }
+        }
+      });
+      if (!bestLoc) break; // 더 이상 차감할 위치 없음
+      var avail = stockMap[bestLoc][outItem].qty;
+      var take = Math.min(avail, remaining);
+      stockMap[bestLoc][outItem].qty -= take;
+      remaining -= take;
+    }
+    // 어떤 위치에도 재고가 없으면 원래 위치에 음수 반영 (데이터 오류 표시용)
+    if (remaining > 0 && r.location && stockMap[r.location] && stockMap[r.location][outItem]) {
+      stockMap[r.location][outItem].qty -= remaining;
     }
   });
   return stockMap;
