@@ -61,6 +61,11 @@
     .stock-low { color:#e67e22; font-weight:700; }
     .stock-zero { color:#aaa; font-weight:700; }
     .stock-neg { color:#e74c3c; font-weight:700; }
+    /* ── 드롭존 ── */
+    .lg2-drop-zone { border:2px dashed #ccc; border-radius:12px; padding:22px 16px; text-align:center; cursor:pointer; background:#fafafa; margin-bottom:14px; transition:all 0.2s; user-select:none; }
+    .lg2-drop-zone:hover { border-color:#27ae60; background:#f0fff4; }
+    .lg2-drop-zone.dragover { border-color:#27ae60; background:#e8fff2; transform:scale(1.01); }
+    .lg2-drop-zone.uploading { border-color:#3498db; background:#eaf4ff; }
     /* ── 재고실사 행 색상 ── */
     .audit-row-diff { background:#fff8e1 !important; }
     .audit-row-ok { background:#f0fff4 !important; }
@@ -184,7 +189,8 @@
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-primary" onclick="lg2OpenInboundModal()"><i class="fas fa-plus"></i> 입고 등록</button>
           <button class="scan-btn" onclick="lg2OpenScanModal('inbound')"><i class="fas fa-barcode"></i> 바코드 스캔 입고</button>
-          <button class="btn btn-secondary btn-sm" onclick="lg2ExportInboundExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
+          <button class="btn btn-secondary btn-sm" onclick="lg2ExportInboundExcel()"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
+          <button class="btn btn-secondary btn-sm" onclick="lg2DownloadInboundTemplate()" style="background:#e8f5e9;color:#27ae60;border-color:#a5d6a7"><i class="fas fa-file-download"></i> 양식 다운로드</button>
           <div style="flex:1"></div>
           <input type="text" id="lg2InSearch" placeholder="품목명 검색..." oninput="lg2RenderInbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
           <select id="lg2InWarehouse" onchange="lg2RenderInbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
@@ -192,6 +198,13 @@
             <option value="W">🏭 일반창고(W)</option>
             <option value="C">❄️ 저온창고(C)</option>
           </select>
+        </div>
+        <!-- 입고 엑셀 업로드 영역 -->
+        <div id="lg2InDropZone" class="lg2-drop-zone" onclick="document.getElementById('lg2InFileInput').click()" ondragover="lg2DragOver(event)" ondragleave="lg2DragLeave(event)" ondrop="lg2DropFile(event,'inbound')">
+          <input type="file" id="lg2InFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="lg2HandleFileUpload(this,'inbound')" />
+          <i class="fas fa-cloud-upload-alt" style="font-size:28px;color:#aaa;margin-bottom:8px"></i>
+          <div style="font-size:13px;font-weight:700;color:#555">엑셀 파일을 드래그하거나 클릭하여 업로드</div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">.xlsx / .xls / .csv 지원 · 양식 다운로드 후 작성하여 업로드하세요</div>
         </div>
         <div class="table-container">
           <table class="data-table">
@@ -223,7 +236,8 @@
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-primary" onclick="lg2OpenOutboundModal()"><i class="fas fa-plus"></i> 출고 등록</button>
           <button class="scan-btn" onclick="lg2OpenScanModal('outbound')"><i class="fas fa-barcode"></i> 바코드 스캔 출고</button>
-          <button class="btn btn-secondary btn-sm" onclick="lg2ExportOutboundExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
+          <button class="btn btn-secondary btn-sm" onclick="lg2ExportOutboundExcel()"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
+          <button class="btn btn-secondary btn-sm" onclick="lg2DownloadOutboundTemplate()" style="background:#e8f5e9;color:#27ae60;border-color:#a5d6a7"><i class="fas fa-file-download"></i> 양식 다운로드</button>
           <div style="flex:1"></div>
           <input type="text" id="lg2OutSearch" placeholder="품목명 검색..." oninput="lg2RenderOutbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
           <select id="lg2OutWarehouse" onchange="lg2RenderOutbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
@@ -231,6 +245,13 @@
             <option value="W">🏭 일반창고(W)</option>
             <option value="C">❄️ 저온창고(C)</option>
           </select>
+        </div>
+        <!-- 출고 엑셀 업로드 영역 -->
+        <div id="lg2OutDropZone" class="lg2-drop-zone" onclick="document.getElementById('lg2OutFileInput').click()" ondragover="lg2DragOver(event)" ondragleave="lg2DragLeave(event)" ondrop="lg2DropFile(event,'outbound')">
+          <input type="file" id="lg2OutFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="lg2HandleFileUpload(this,'outbound')" />
+          <i class="fas fa-cloud-upload-alt" style="font-size:28px;color:#aaa;margin-bottom:8px"></i>
+          <div style="font-size:13px;font-weight:700;color:#555">엑셀 파일을 드래그하거나 클릭하여 업로드</div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">.xlsx / .xls / .csv 지원 · 양식 다운로드 후 작성하여 업로드하세요</div>
         </div>
         <div class="table-container">
           <table class="data-table">

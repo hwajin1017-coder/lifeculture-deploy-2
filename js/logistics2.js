@@ -1086,3 +1086,268 @@ function lg2ExportAuditExcel() {
 function lg2esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ══════════════════════════════════════════════════════
+// 엑셀 업로드 (드래그&클릭) — 입고/출고
+// ══════════════════════════════════════════════════════
+
+function lg2DragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.add('dragover');
+}
+
+function lg2DragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('dragover');
+}
+
+function lg2DropFile(e, mode) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('dragover');
+  var files = e.dataTransfer && e.dataTransfer.files;
+  if (!files || !files.length) return;
+  lg2ParseAndSaveExcel(files[0], mode);
+}
+
+function lg2HandleFileUpload(input, mode) {
+  if (!input.files || !input.files.length) return;
+  lg2ParseAndSaveExcel(input.files[0], mode);
+  input.value = '';
+}
+
+async function lg2ParseAndSaveExcel(file, mode) {
+  var zoneId = mode === 'inbound' ? 'lg2InDropZone' : 'lg2OutDropZone';
+  var zone = document.getElementById(zoneId);
+  if (zone) zone.classList.add('uploading');
+
+  try {
+    if (typeof XLSX === 'undefined') {
+      showToast('엑셀 라이브러리가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.', 'error');
+      return;
+    }
+    var data = await file.arrayBuffer();
+    var wb = XLSX.read(data, { type: 'array', cellDates: true });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    if (!rows || rows.length < 2) {
+      showToast('데이터가 없거나 형식이 올바르지 않습니다.', 'warning');
+      return;
+    }
+
+    var header = rows[0].map(function(h) { return String(h).trim(); });
+
+    // 마지막 행이 합계 행인 경우 제외
+    var dataRows = rows.slice(1);
+    if (dataRows.length > 0) {
+      var lastRow = dataRows[dataRows.length - 1];
+      var firstCell = String(lastRow[0] || '').trim();
+      if (!firstCell || firstCell.indexOf('합계') >= 0 || firstCell.indexOf('총계') >= 0 || firstCell === '계') {
+        dataRows = dataRows.slice(0, -1);
+      }
+    }
+    // 완전히 빈 행 제거
+    dataRows = dataRows.filter(function(r) {
+      return r.some(function(c) { return String(c).trim() !== ''; });
+    });
+
+    if (!dataRows.length) {
+      showToast('업로드할 데이터 행이 없습니다.', 'warning');
+      return;
+    }
+
+    // 헤더 인덱스 매핑
+    function col(names) {
+      for (var ni = 0; ni < names.length; ni++) {
+        var idx = -1;
+        for (var hi = 0; hi < header.length; hi++) {
+          if (header[hi].indexOf(names[ni]) >= 0) { idx = hi; break; }
+        }
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    }
+
+    // 날짜 변환 헬퍼
+    function toDateStr(val) {
+      if (!val) return '';
+      if (val instanceof Date) {
+        var y = val.getFullYear();
+        var mo = String(val.getMonth() + 1).padStart(2, '0');
+        var d = String(val.getDate()).padStart(2, '0');
+        return y + '-' + mo + '-' + d;
+      }
+      var s = String(val).trim();
+      if (/^\d{5}$/.test(s)) {
+        try {
+          var parsed = XLSX.SSF.parse_date_code(parseInt(s));
+          if (parsed) return parsed.y + '-' + String(parsed.m).padStart(2,'0') + '-' + String(parsed.d).padStart(2,'0');
+        } catch(ex) {}
+      }
+      var clean = s.replace(/\./g, '-').replace(/\//g, '-');
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(clean)) {
+        var parts = clean.split('-');
+        return parts[0] + '-' + parts[1].padStart(2,'0') + '-' + parts[2].padStart(2,'0');
+      }
+      return s;
+    }
+
+    var saved = 0;
+    var skipped = 0;
+    var todayStr = new Date().toISOString().split('T')[0];
+
+    if (mode === 'inbound') {
+      var iDate      = col(['입고일', '날짜', 'date']);
+      var iWarehouse = col(['창고', 'warehouse']);
+      var iItem      = col(['품목명', '품목', '제품명', '제품', 'item', 'product']);
+      var iQty       = col(['수량', 'ea', 'qty', 'quantity']);
+      var iExpiry    = col(['소비기한', '유통기한', 'expiry', 'expire']);
+      var iSupplier  = col(['공급업체', '공급사', 'supplier', 'vendor']);
+      var iManager   = col(['담당자', '작성자', 'manager']);
+      var iMemo      = col(['비고', '메모', 'memo', 'note', 'remark']);
+
+      if (iItem < 0) {
+        showToast('품목명 열을 찾을 수 없습니다. 양식을 확인해주세요.', 'error');
+        return;
+      }
+
+      for (var ri = 0; ri < dataRows.length; ri++) {
+        var row = dataRows[ri];
+        var itemName = String(row[iItem] || '').trim();
+        if (!itemName) { skipped++; continue; }
+        var qty = parseInt(row[iQty] || 0) || 0;
+        if (qty <= 0) { skipped++; continue; }
+
+        var warehouseRaw = String(row[iWarehouse] || '').trim().toUpperCase();
+        var warehouse = (warehouseRaw.indexOf('C') >= 0 || warehouseRaw.indexOf('저온') >= 0) ? 'C' : 'W';
+        var breakdown = lg2CalcBreakdown(qty, itemName);
+
+        var rec = {
+          date:      toDateStr(row[iDate]) || todayStr,
+          warehouse: warehouse,
+          item_name: itemName,
+          qty_ea:    qty,
+          qty_box:   breakdown.box,
+          qty_pt:    breakdown.pt,
+          expiry:    toDateStr(row[iExpiry]) || '',
+          supplier:  String(row[iSupplier] || '').trim(),
+          manager:   String(row[iManager] || '').trim(),
+          memo:      String(row[iMemo] || '').trim(),
+          createdAt: new Date().toISOString(),
+          source:    'excel'
+        };
+        await apiPost('lg2_inbound', rec);
+        saved++;
+      }
+    } else {
+      var oDate      = col(['출고일', '날짜', 'date']);
+      var oWarehouse = col(['창고', 'warehouse']);
+      var oItem      = col(['품목명', '품목', '제품명', '제품', 'item', 'product']);
+      var oQty       = col(['수량', 'ea', 'qty', 'quantity']);
+      var oDest      = col(['출고체', '거래체', '고객사', 'destination', 'dest', 'customer']);
+      var oManager   = col(['담당자', '작성자', 'manager']);
+      var oMemo      = col(['비고', '메모', 'memo', 'note', 'remark']);
+
+      if (oItem < 0) {
+        showToast('품목명 열을 찾을 수 없습니다. 양식을 확인해주세요.', 'error');
+        return;
+      }
+
+      for (var oi = 0; oi < dataRows.length; oi++) {
+        var orow = dataRows[oi];
+        var oItemName = String(orow[oItem] || '').trim();
+        if (!oItemName) { skipped++; continue; }
+        var oQtyVal = parseInt(orow[oQty] || 0) || 0;
+        if (oQtyVal <= 0) { skipped++; continue; }
+
+        var oWarehouseRaw = String(orow[oWarehouse] || '').trim().toUpperCase();
+        var oWarehouseVal = (oWarehouseRaw.indexOf('C') >= 0 || oWarehouseRaw.indexOf('저온') >= 0) ? 'C' : 'W';
+        var oBd = lg2CalcBreakdown(oQtyVal, oItemName);
+
+        var orec = {
+          date:        toDateStr(orow[oDate]) || todayStr,
+          warehouse:   oWarehouseVal,
+          item_name:   oItemName,
+          qty_ea:      oQtyVal,
+          qty_box:     oBd.box,
+          qty_pt:      oBd.pt,
+          destination: String(orow[oDest] || '').trim(),
+          manager:     String(orow[oManager] || '').trim(),
+          memo:        String(orow[oMemo] || '').trim(),
+          createdAt:   new Date().toISOString(),
+          source:      'excel'
+        };
+        await apiPost('lg2_outbound', orec);
+        saved++;
+      }
+    }
+
+    await lg2LoadAll();
+    lg2RenderAll();
+
+    if (saved > 0) {
+      showToast(saved + '건 업로드 완료' + (skipped > 0 ? ' (건너롱 ' + skipped + '건)' : ''), 'success');
+    } else {
+      showToast('업로드된 데이터가 없습니다. (건너롱 ' + skipped + '건)', 'warning');
+    }
+  } catch(err) {
+    console.error('엑셀 업로드 오류:', err);
+    showToast('파일 처리 중 오류가 발생했습니다: ' + (err.message || err), 'error');
+  } finally {
+    if (zone) zone.classList.remove('uploading');
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// 양식 다운로드 (입고 / 출고)
+// ══════════════════════════════════════════════════════
+
+function lg2DownloadInboundTemplate() {
+  if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
+  var header = ['입고일', '창고(W=일반/C=저온)', '품목명', '수량(ea)', '소비기한', '공급업체', '담당자', '비고'];
+  var example = [
+    new Date().toISOString().split('T')[0],
+    'W',
+    '예시제품A',
+    100,
+    '2026-12-31',
+    '(주)공급업체',
+    '홍길동',
+    '메모'
+  ];
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet([header, example]);
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 10 },
+    { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 20 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, '입고양식');
+  XLSX.writeFile(wb, '물류관리2_입고_양식.xlsx');
+  showToast('입고 양식이 다운로드되었습니다.', 'success');
+}
+
+function lg2DownloadOutboundTemplate() {
+  if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
+  var header = ['출고일', '창고(W=일반/C=저온)', '품목명', '수량(ea)', '출고체', '담당자', '비고'];
+  var example = [
+    new Date().toISOString().split('T')[0],
+    'W',
+    '예시제품A',
+    50,
+    '(주)거래체',
+    '홍길동',
+    '메모'
+  ];
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet([header, example]);
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 10 },
+    { wch: 20 }, { wch: 10 }, { wch: 20 }
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, '출고양식');
+  XLSX.writeFile(wb, '물류관리2_출고_양식.xlsx');
+  showToast('출고 양식이 다운로드되었습니다.', 'success');
+}
