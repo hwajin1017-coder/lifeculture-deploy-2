@@ -5638,6 +5638,7 @@ async function whDoFullStMove(fromLoc, toLoc) {
 
   var toWh = toLoc.charAt(0);
   try {
+    // 입고 레코드 이동
     for (var i = 0; i < targets.length; i++) {
       var rec = targets[i];
       var updated = Object.assign({}, rec, {
@@ -5648,6 +5649,15 @@ async function whDoFullStMove(fromLoc, toLoc) {
       var recId = updated.id;
       delete updated.id;
       await apiPut('wh_inbound', recId, updated);
+    }
+    // 출고 레코드도 함께 이동 (재고 계산 정합성 보장 - 출고가 fromLoc에 남으면 음수 재고 발생)
+    var outTargets = whOutboundData.filter(function(r) { return r.location === fromLoc; });
+    for (var j = 0; j < outTargets.length; j++) {
+      var oRec = outTargets[j];
+      var oUpdated = Object.assign({}, oRec, { warehouse: toWh, location: toLoc });
+      var oRecId = oUpdated.id;
+      delete oUpdated.id;
+      try { await apiPut('wh_outbound', oRecId, oUpdated); } catch(oe) { /* 출고 레코드 업데이트 실패는 무시 */ }
     }
     showToast('이동 완료: ' + fromLoc + ' → ' + toLoc + ' (' + targets.length + '건)', 'success');
     whInvalidateMapCache();
@@ -5714,8 +5724,8 @@ async function whSaveFullStocktake() {
     var adjDate = date;
     var adjDateShort = adjDate.replace(/-/g, '').slice(2);
     var adjPrefix = 'WH-ADJ-' + adjDateShort;
-    var existingAdj = [];
-    try { existingAdj = (await apiGetAll('wh_inbound')).filter(function(r) { return r.lot_no && r.lot_no.startsWith(adjPrefix); }); } catch(e2) {}
+    // ★ 메모리 데이터 사용 (apiGetAll 재호출 금지 - 재호출 시 방금 저장한 실사 레코드가 포함되어 adjSeq 오류 발생)
+    var existingAdj = whInboundData.filter(function(r) { return r.lot_no && r.lot_no.startsWith(adjPrefix); });
     var adjSeq = existingAdj.length;
     var adjCreated = 0;
 
@@ -5765,47 +5775,50 @@ async function whSaveFullStocktake() {
     var msg = '전체 실사 저장 완료 (' + records.length + '건)';
     if (adjCreated > 0) msg += ' — 재고 자동 조정 ' + adjCreated + '건 반영';
     showToast(msg, 'success');
-    // ── 전체 물류관리 연동 갱신 ──────────────────────────────
-    showToast('물류관리 전체 데이터 동기화 중...', 'info');
+
+    // ── 실사 저장 완료 후 임시 입력값 초기화 ──
+    _whFullStPendingInputs = {};
+
+    // ── DB 재로드 (단일화) ──
     whInvalidateMapCache();
-    // 1) warehouse-mgmt 전체 재로드 (입고/출고/실사/원장/맵/KPI)
-    await whReloadAll();
-    // 2) logistics.js 재고현황 및 물류 테이블 갱신
-    if (typeof loadLogisticsData === 'function') await loadLogisticsData();
-    // 3) 창고맵 갱신 (현재 선택된 맵 타입 유지)
+    await whReloadAll(); // 입고/출고/실사 데이터 재로드
+
+    // ── 재로드 후 freshMap 한 번만 계산 ──
     var freshMap = whCalcStock();
-    whUpdateDashKpi(freshMap);
-    whUpdateMapKpi(freshMap);
-    var mapTab = document.getElementById('tabContent_wh_map');
-    if (mapTab) { whShowMap(whCurrentMap || 'cold', freshMap); }
-    // 4) 재고원장 갱신
-    whRenderLedger(freshMap);
-    // 5) 입고/출고 테이블 갱신
+
+    // ── 현재 탭 UI 갱신 (실사 탭 우선) ──
     whRenderInTable();
     whRenderOutTable();
-    // 6) 실사 이력 테이블 갱신
     whRenderStocktakeTable();
-    // 7) FIFO 갱신
-    if (typeof whRenderFifo === 'function') whRenderFifo();
-    // 8) 재고검증 탭 갱신 (검색 결과가 열려있으면 재검색)
-    if (typeof vfySearch === 'function') {
-      var vfyInput = document.getElementById('vfyItemInput');
-      if (vfyInput && vfyInput.value.trim()) { vfySearch(); }
+    whRenderLedger(freshMap);
+    whUpdateDashKpi(freshMap);
+    whUpdateMapKpi(freshMap);
+
+    // ── 맵 탭이 현재 표시중이면 갱신 ──
+    var mapTab = document.getElementById('tabContent_wh_map');
+    if (mapTab && mapTab.style.display !== 'none') {
+      whShowMap(whCurrentMap || 'cold', freshMap);
     }
-    // 9) lgRenderStockTable (재고현황 테이블)
-    if (typeof lgRenderStockTable === 'function') lgRenderStockTable();
-    // 10) InventoryStore 이벤트 발행 → 구독 모듈 자동 갱신
-    if (window.InventoryStore) {
-      window.InventoryStore.emit('warehouse:updated', {
-        wh_inbound: whInboundData,
-        wh_outbound: whOutboundData,
-        wh_stocktake: whStocktakeData
-      });
-    }
-    showToast('전체 동기화 완료', 'success');
-    // 실사 저장 완료 후 임시 입력값 초기화
-    _whFullStPendingInputs = {};
-    // 그리드 재렌더링 (스크롤 위치 유지)
+
+    // ── 비동기 백그라운드 갱신 (UI 블로킹 없이) ──
+    setTimeout(function() {
+      if (typeof loadLogisticsData === 'function') loadLogisticsData();
+      if (typeof whRenderFifo === 'function') whRenderFifo();
+      if (typeof lgRenderStockTable === 'function') lgRenderStockTable();
+      if (typeof vfySearch === 'function') {
+        var vfyInput = document.getElementById('vfyItemInput');
+        if (vfyInput && vfyInput.value.trim()) vfySearch();
+      }
+      if (window.InventoryStore) {
+        window.InventoryStore.emit('warehouse:updated', {
+          wh_inbound: whInboundData,
+          wh_outbound: whOutboundData,
+          wh_stocktake: whStocktakeData
+        });
+      }
+    }, 300);
+
+    // ── 그리드 재렌더링 (스크롤 위치 유지) ──
     var gridEl = document.getElementById('whFullStocktakeGridInner');
     var scrollTop = gridEl ? (gridEl.closest('[style*="overflow"]') || document.documentElement).scrollTop : 0;
     whRenderFullStocktakeGrid();
