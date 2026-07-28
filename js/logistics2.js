@@ -289,9 +289,13 @@ function lg2RenderOverview() {
 }
 
 // ══════════════════════════════════════════════════
-// 입고관리 렌더링
+// 입고관리 렌더링 (페이지네이션)
 // ══════════════════════════════════════════════════
-function lg2RenderInbound() {
+var _lg2InPage = 1;
+var _lg2InPageSize = 20;
+
+function lg2RenderInbound(resetPage) {
+  if (resetPage) _lg2InPage = 1;
   var wh = (document.getElementById('lg2InWarehouse') || {}).value || '';
   var q  = ((document.getElementById('lg2InSearch') || {}).value || '').toLowerCase();
   var rows = _lg2InboundData.slice();
@@ -299,13 +303,20 @@ function lg2RenderInbound() {
   if (q)  rows = rows.filter(function(r) { return (r.item_name || '').toLowerCase().includes(q); });
   rows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
 
+  var total = rows.length;
+  var totalPages = Math.max(1, Math.ceil(total / _lg2InPageSize));
+  if (_lg2InPage > totalPages) _lg2InPage = totalPages;
+  var start = (_lg2InPage - 1) * _lg2InPageSize;
+  var pageRows = rows.slice(start, start + _lg2InPageSize);
+
   var tbody = document.getElementById('lg2InBody');
   if (!tbody) return;
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">입고 내역이 없습니다.</td></tr>';
+    lg2RenderPager('lg2InPageInfo','lg2InPageBtns', 0, 0, 0, 'inbound');
     return;
   }
-  tbody.innerHTML = rows.map(function(r) {
+  tbody.innerHTML = pageRows.map(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea || 0, r.item_name);
     var wBadge = r.warehouse === 'W'
       ? '<span class="badge-W">🏭 일반(W)</span>'
@@ -326,12 +337,17 @@ function lg2RenderInbound() {
       '</td>' +
       '</tr>';
   }).join('');
+  lg2RenderPager('lg2InPageInfo','lg2InPageBtns', total, _lg2InPage, totalPages, 'inbound');
 }
 
 // ══════════════════════════════════════════════════
-// 출고관리 렌더링
+// 출고관리 렌더링 (페이지네이션)
 // ══════════════════════════════════════════════════
-function lg2RenderOutbound() {
+var _lg2OutPage = 1;
+var _lg2OutPageSize = 20;
+
+function lg2RenderOutbound(resetPage) {
+  if (resetPage) _lg2OutPage = 1;
   var wh = (document.getElementById('lg2OutWarehouse') || {}).value || '';
   var q  = ((document.getElementById('lg2OutSearch') || {}).value || '').toLowerCase();
   var rows = _lg2OutboundData.slice();
@@ -339,13 +355,20 @@ function lg2RenderOutbound() {
   if (q)  rows = rows.filter(function(r) { return (r.item_name || '').toLowerCase().includes(q); });
   rows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
 
+  var total = rows.length;
+  var totalPages = Math.max(1, Math.ceil(total / _lg2OutPageSize));
+  if (_lg2OutPage > totalPages) _lg2OutPage = totalPages;
+  var start = (_lg2OutPage - 1) * _lg2OutPageSize;
+  var pageRows = rows.slice(start, start + _lg2OutPageSize);
+
   var tbody = document.getElementById('lg2OutBody');
   if (!tbody) return;
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">출고 내역이 없습니다.</td></tr>';
+    lg2RenderPager('lg2OutPageInfo','lg2OutPageBtns', 0, 0, 0, 'outbound');
     return;
   }
-  tbody.innerHTML = rows.map(function(r) {
+  tbody.innerHTML = pageRows.map(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea || 0, r.item_name);
     var wBadge = r.warehouse === 'W'
       ? '<span class="badge-W">🏭 일반(W)</span>'
@@ -366,6 +389,7 @@ function lg2RenderOutbound() {
       '</td>' +
       '</tr>';
   }).join('');
+  lg2RenderPager('lg2OutPageInfo','lg2OutPageBtns', total, _lg2OutPage, totalPages, 'outbound');
 }
 
 // ══════════════════════════════════════════════════
@@ -1080,6 +1104,59 @@ function lg2ExportAuditExcel() {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '재고실사');
   XLSX.writeFile(wb, '물류관리2_재고실사_' + new Date().toISOString().split('T')[0] + '.xlsx');
   showToast('재고실사 엑셀 다운로드 완료!', 'success');
+}
+
+// ══════════════════════════════════════════════════
+// 페이지네이션 공통 렌더러
+// ══════════════════════════════════════════════════
+function lg2RenderPager(infoId, btnsId, total, curPage, totalPages, mode) {
+  var infoEl = document.getElementById(infoId);
+  var btnsEl = document.getElementById(btnsId);
+  if (!infoEl || !btnsEl) return;
+
+  if (!total) {
+    infoEl.textContent = '';
+    btnsEl.innerHTML = '';
+    return;
+  }
+
+  var pageSize = mode === 'inbound' ? _lg2InPageSize : _lg2OutPageSize;
+  var startRow = (curPage - 1) * pageSize + 1;
+  var endRow   = Math.min(curPage * pageSize, total);
+  infoEl.textContent = '전체 ' + total + '건 · ' + startRow + '-' + endRow + '건 표시';
+
+  // 페이지 버튼 생성 (윈도우 슬라이딩: 현재 페이지 기준 앞뒤 2개씩)
+  var html = '';
+  // 이전 버튼
+  html += '<button class="lg2-page-btn" ' + (curPage <= 1 ? 'disabled' : '') + ' onclick="lg2GoPage(1,\'' + mode + '\')">&#171;</button>';
+  html += '<button class="lg2-page-btn" ' + (curPage <= 1 ? 'disabled' : '') + ' onclick="lg2GoPage(' + (curPage-1) + ',\'' + mode + '\')">&#8249;</button>';
+
+  // 페이지 번호 (curPage 기준 앞뒤 2개)
+  var pStart = Math.max(1, curPage - 2);
+  var pEnd   = Math.min(totalPages, curPage + 2);
+  if (pStart > 1) html += '<button class="lg2-page-btn" onclick="lg2GoPage(1,\'' + mode + '\')">1</button>';
+  if (pStart > 2) html += '<span style="padding:0 4px;color:#aaa">…</span>';
+  for (var p = pStart; p <= pEnd; p++) {
+    html += '<button class="lg2-page-btn' + (p === curPage ? ' active' : '') + '" onclick="lg2GoPage(' + p + ',\'' + mode + '\')">'+p+'</button>';
+  }
+  if (pEnd < totalPages - 1) html += '<span style="padding:0 4px;color:#aaa">…</span>';
+  if (pEnd < totalPages) html += '<button class="lg2-page-btn" onclick="lg2GoPage(' + totalPages + ',\'' + mode + '\')">'+totalPages+'</button>';
+
+  // 다음 버튼
+  html += '<button class="lg2-page-btn" ' + (curPage >= totalPages ? 'disabled' : '') + ' onclick="lg2GoPage(' + (curPage+1) + ',\'' + mode + '\')">&#8250;</button>';
+  html += '<button class="lg2-page-btn" ' + (curPage >= totalPages ? 'disabled' : '') + ' onclick="lg2GoPage(' + totalPages + ',\'' + mode + '\')">&#187;</button>';
+
+  btnsEl.innerHTML = html;
+}
+
+function lg2GoPage(page, mode) {
+  if (mode === 'inbound') {
+    _lg2InPage = page;
+    lg2RenderInbound();
+  } else {
+    _lg2OutPage = page;
+    lg2RenderOutbound();
+  }
 }
 
 // ── HTML 이스케이프 ──
