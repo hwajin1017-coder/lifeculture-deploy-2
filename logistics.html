@@ -1031,6 +1031,7 @@
               <button class="btn btn-secondary" onclick="whExport('out')"><i class="fas fa-file-excel"></i> 엑셀</button>
               <button class="btn" onclick="whBackupData('out')" style="background:#e8f4fd;color:#2980b9;border:1px solid #2980b9;font-size:12px;padding:5px 10px" title="출고 데이터를 JSON 파일로 백업"><i class="fas fa-download"></i> 백업</button>
               <button class="btn" onclick="whRestoreData('out')" style="background:#fef9e7;color:#d68910;border:1px solid #d68910;font-size:12px;padding:5px 10px" title="JSON 백업 파일로 출고 데이터 복구 (관리자 전용)"><i class="fas fa-upload"></i> 복구</button>
+              <button class="btn" onclick="whOutDeleteAll()" style="background:#fdedec;color:#c0392b;border:1px solid #c0392b;font-size:12px;padding:5px 10px" title="출고 이력 전체 삭제 (관리자 전용)"><i class="fas fa-trash-alt"></i> 전체 삭제</button>
             </div>
           </div>
           <div class="table-wrap">
@@ -1262,13 +1263,20 @@
               재고없음 보이기
             </label>
           </div>
-          <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
             <select id="whLedgerWarehouse" onchange="whRenderLedger()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
               <option value="">전체 창고</option>
               <option value="C">❄️ 저온창고</option>
               <option value="W">🏭 일반창고</option>
             </select>
             <input type="text" id="whLedgerSearch" placeholder="품목명 검색..." oninput="whRenderLedger()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;flex:1;min-width:180px" />
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#555;white-space:nowrap">
+              <span>입고일 범위:</span>
+              <input type="date" id="whLedgerDateFrom" onchange="whRenderLedger()" style="padding:7px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:12px" title="시작일" />
+              <span>~</span>
+              <input type="date" id="whLedgerDateTo" onchange="whRenderLedger()" style="padding:7px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:12px" title="종료일" />
+              <button onclick="document.getElementById('whLedgerDateFrom').value='';document.getElementById('whLedgerDateTo').value='';whRenderLedger();" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#f5f5f5;font-size:11px;cursor:pointer;color:#666" title="날짜 필터 초기화">↺ 전체</button>
+            </div>
           </div>
           <div class="table-wrap">
             <table>

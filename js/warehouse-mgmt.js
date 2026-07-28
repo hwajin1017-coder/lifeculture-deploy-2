@@ -1311,6 +1311,38 @@ async function whDeleteOutbound(id, lotNo) {
   }
 }
 
+// ── 출고 전체 삭제 (관리자 전용) ─────────────────────────────────────
+async function whOutDeleteAll() {
+  if (whOutboundData.length === 0) { showToast('삭제할 출고 이력이 없습니다.', 'warning'); return; }
+  if (!confirm('출고 이력 전체 ' + whOutboundData.length + '건을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  var adminPw = prompt('⚠️ 전체 삭제는 되돌릴 수 없습니다.\n관리자 비밀번호를 입력하세요:');
+  if (adminPw === null) return;
+  var _odUsers = [];
+  try { _odUsers = JSON.parse(localStorage.getItem('lc_users') || '[]'); } catch(e) {}
+  if (_odUsers.length === 0 && typeof DEFAULT_USERS !== 'undefined') _odUsers = DEFAULT_USERS;
+  var _odAdmin = _odUsers.find(function(u) { return u.password === adminPw && u.role === 'admin' && u.active; });
+  if (!_odAdmin) { showToast('관리자 비밀번호가 올바르지 않습니다.', 'error'); return; }
+  var ids = whOutboundData.map(function(r){ return r.id; });
+  var lotNos = whOutboundData.map(function(r){ return r.lot_no || ''; }).filter(function(l){ return !!l; });
+  var successCount = 0, failCount = 0;
+  for (var i = 0; i < ids.length; i++) {
+    try { await apiDelete('wh_outbound', ids[i]); successCount++; } catch(e) { failCount++; }
+  }
+  // logistics 컬렉션에서 연동 출고 기록 삭제
+  if (lotNos.length > 0) {
+    try {
+      var lgAll = (typeof allLogisticsData !== 'undefined' && allLogisticsData.length > 0) ? allLogisticsData : await apiGetAll('logistics');
+      var lgMatch = lgAll.filter(function(r) { return lotNos.indexOf(r.wh_lot_no || r.lot_no) !== -1 && r.transaction_type === '출고'; });
+      for (var j = 0; j < lgMatch.length; j++) { if (lgMatch[j].id) await apiDelete('logistics', lgMatch[j].id); }
+    } catch(le) { console.warn('logistics 연동 삭제 실패:', le); }
+  }
+  showToast(successCount + '건 전체 삭제 완료' + (failCount > 0 ? ' (' + failCount + '건 실패)' : ''), 'success');
+  whInvalidateMapCache();
+  await whReloadAll();
+  if (typeof loadLogisticsData === 'function') loadLogisticsData();
+}
+
+
 // ── 수불부 렌더 ───────────────────────────────────
 // 최적화: stockMap을 인수로 받아 중복 계산 방지 (없으면 자체 계산)
 function whRenderLedger(stockMap) {
@@ -1320,6 +1352,8 @@ function whRenderLedger(stockMap) {
   // 필터 값 읽기
   var whFilter = document.getElementById('whLedgerWarehouse') ? document.getElementById('whLedgerWarehouse').value : '';
   var qFilter = document.getElementById('whLedgerSearch') ? document.getElementById('whLedgerSearch').value.toLowerCase() : '';
+  var dateFrom = document.getElementById('whLedgerDateFrom') ? document.getElementById('whLedgerDateFrom').value : '';
+  var dateTo = document.getElementById('whLedgerDateTo') ? document.getElementById('whLedgerDateTo').value : '';
 
   var rows = [];
   Object.entries(stockMap).forEach(function(entry) {
@@ -1330,12 +1364,42 @@ function whRenderLedger(stockMap) {
       var itemName = e[0], info = e[1];
       // 품목명 검색 필터
       if (qFilter && itemName.toLowerCase().indexOf(qFilter) === -1) return;
+      // 날짜 범위 필터: 해당 위치+품목에 날짜 범위 내 입고 레코드가 하나라도 있어야 표시
+      if (dateFrom || dateTo) {
+        var hasInRange = whInboundData.some(function(r) {
+          if (r.location !== locCode || (r.item_name||'미상') !== itemName) return false;
+          var d = r.inbound_date || '';
+          if (dateFrom && d < dateFrom) return false;
+          if (dateTo && d > dateTo) return false;
+          return true;
+        });
+        if (!hasInRange) return;
+      }
       var inQty = 0, outQty = 0;
-      whInboundData.filter(function(r){ return r.location === locCode && (r.item_name||'미상') === itemName; }).forEach(function(r){ inQty += Number(r.qty)||0; });
+      // 날짜 필터 적용 시 해당 기간 입고만 집계
+      whInboundData.filter(function(r) {
+        if (r.location !== locCode || (r.item_name||'미상') !== itemName) return false;
+        if (dateFrom || dateTo) {
+          var d = r.inbound_date || '';
+          if (dateFrom && d < dateFrom) return false;
+          if (dateTo && d > dateTo) return false;
+        }
+        return true;
+      }).forEach(function(r){ inQty += Number(r.qty)||0; });
       // 출고: 정확한 위치 매칭만 집계 (위치 없는 출고는 whCalcStock에서 이미 차감)
-      whOutboundData.filter(function(r){ return (r.item_name||'미상') === itemName && r.location === locCode; }).forEach(function(r){ outQty += Number(r.qty)||0; });
+      whOutboundData.filter(function(r) {
+        if ((r.item_name||'미상') !== itemName || r.location !== locCode) return false;
+        if (dateFrom || dateTo) {
+          var d = r.outbound_date || '';
+          if (dateFrom && d < dateFrom) return false;
+          if (dateTo && d > dateTo) return false;
+        }
+        return true;
+      }).forEach(function(r){ outQty += Number(r.qty)||0; });
       var warehouseLabel = locCode.startsWith('C') ? '❄️ 저온' : '🏭 일반';
-      rows.push({ locCode: locCode, warehouseLabel: warehouseLabel, itemName: itemName, inQty: inQty, outQty: outQty, currentQty: info.qty, unit: info.unit, expiry: info.expiry });
+      // 날짜 필터 적용 시 현재고는 필터된 입고-출고 차이로 표시
+      var displayQty = (dateFrom || dateTo) ? (inQty - outQty) : info.qty;
+      rows.push({ locCode: locCode, warehouseLabel: warehouseLabel, itemName: itemName, inQty: inQty, outQty: outQty, currentQty: displayQty, unit: info.unit, expiry: info.expiry });
     });
   });
 
@@ -1385,7 +1449,10 @@ function whRenderLedger(stockMap) {
     var expiryText = r.expiry ? (r.expiry + (diff !== null ? ' (D-' + diff + ')' : '')) : '-';
     // 상태 배지
     var statusBadge = '';
-    if (r.currentQty <= 0) {
+    var isNegative = r.currentQty < 0;
+    if (isNegative) {
+      statusBadge = '<span style="background:#c0392b;color:#fff;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700">⚠️ 음수재고</span>';
+    } else if (r.currentQty === 0) {
       statusBadge = '<span style="background:#fdedec;color:#e74c3c;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700">재고없음</span>';
     } else if (diff !== null && diff < 0) {
       statusBadge = '<span style="background:#fdedec;color:#e74c3c;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700">기한만료</span>';
@@ -1394,13 +1461,14 @@ function whRenderLedger(stockMap) {
     } else {
       statusBadge = '<span style="background:#eafaf1;color:#27ae60;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700">정상</span>';
     }
-    return '<tr>' +
+    var rowStyle = isNegative ? ' style="background:#fff5f5;border-left:3px solid #c0392b"' : '';
+    return '<tr' + rowStyle + '>' +
       '<td><span style="font-size:12px">' + r.warehouseLabel + '</span></td>' +
       '<td><code style="font-size:11px">' + r.locCode + '</code></td>' +
       '<td><b>' + r.itemName + '</b></td>' +
       '<td style="text-align:right;color:#27ae60;font-weight:600">' + r.inQty.toLocaleString() + '</td>' +
       '<td style="text-align:right;color:#e74c3c;font-weight:600">' + r.outQty.toLocaleString() + '</td>' +
-      '<td style="text-align:right;font-weight:700;font-size:14px">' + r.currentQty.toLocaleString() + '</td>' +
+      '<td style="text-align:right;font-weight:700;font-size:14px;' + (isNegative ? 'color:#c0392b' : '') + '">' + r.currentQty.toLocaleString() + '</td>' +
       '<td>' + (r.unit||'-') + '</td>' +
       '<td style="color:' + expiryColor + '">' + expiryText + '</td>' +
       '<td>' + statusBadge + '</td>' +
@@ -2744,7 +2812,10 @@ function whBulkAddRow(data) {
 function whBulkWarehouseChange(sel, idx) {
   var wh = sel.value;
   var locEl = document.getElementById('whBulkLoc_' + idx);
-  if (locEl) locEl.innerHTML = _whGetLocOptions(wh, true, locEl); // 실재고 기준 빈 위치만 표시 (자기 행 제외)
+  if (locEl) {
+    locEl.innerHTML = _whGetLocOptions(wh, true, locEl); // 실재고 기준 빈 위치만 표시 (자기 행 제외)
+    locEl.value = ''; // 위치 선택 즉시 초기화
+  }
   var zoneEl = document.getElementById('whBulkZone_' + idx);
   if (zoneEl) zoneEl.value = '';
 }
