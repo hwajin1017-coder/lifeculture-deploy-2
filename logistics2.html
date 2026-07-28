@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2C5F2E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="라이프컬처" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="images/icon-512-v2.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="images/icon-192-v2.png" />
+  <title>물류관리2 - 라이프컬처</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── 탭 바 ── */
+    .tab-bar-wrap { position:relative; margin-bottom:16px; }
+    .tab-bar { display:flex; gap:4px; border-bottom:2px solid #e8e8e8; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; }
+    .tab-bar::-webkit-scrollbar { display:none; }
+    .tab-bar-wrap::after { content:''; position:absolute; right:0; top:0; bottom:2px; width:32px; background:linear-gradient(to right,transparent,#f5f6f7); pointer-events:none; border-radius:0 6px 0 0; }
+    .tab-btn { padding:10px 14px; border:none; background:#f0f2f5; cursor:pointer; font-size:13px; font-weight:600; color:#555; border-bottom:3px solid transparent; margin-bottom:-2px; font-family:'Noto Sans KR',sans-serif; white-space:nowrap; border-radius:6px 6px 0 0; transition:all 0.2s; flex-shrink:0; }
+    .tab-btn:hover { background:#e4e8ef; color:#333; }
+    .tab-btn.active { color:#fff !important; background:var(--primary) !important; border-bottom-color:var(--primary); }
+    @media (max-width:768px) { .tab-btn { padding:8px 10px; font-size:11px; } .tab-btn i { display:none; } }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    /* ── KPI ── */
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+    .kpi-card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); text-align:center; }
+    .kpi-card .kpi-val { font-size:24px; font-weight:800; color:var(--primary); }
+    .kpi-card .kpi-label { font-size:11px; color:#888; margin-top:4px; }
+    /* ── 필터 바 ── */
+    .filter-bar { background:#f8f9fa; border-radius:12px; padding:14px 16px; margin-bottom:16px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+    .filter-bar .form-group { margin-bottom:0; }
+    /* ── 배지 ── */
+    .badge-W { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; background:#e8f4fd; color:#2980b9; }
+    .badge-C { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; background:#e8f8f5; color:#1abc9c; }
+    .badge-in { background:#d4edda; color:#155724; }
+    .badge-out { background:#f8d7da; color:#721c24; }
+    /* ── 테이블 ── */
+    .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .data-table th { background:#f0f2f5; padding:10px 12px; text-align:left; font-weight:700; font-size:12px; color:#555; border-bottom:2px solid #e0e0e0; white-space:nowrap; }
+    .data-table td { padding:10px 12px; border-bottom:1px solid #f0f0f0; vertical-align:middle; }
+    .data-table tr:hover td { background:#fafbfc; }
+    /* ── 모달 ── */
+    .lg2-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:2000; align-items:center; justify-content:center; }
+    .lg2-modal-overlay.show { display:flex; }
+    .lg2-modal { background:#fff; border-radius:16px; width:min(520px,96vw); max-height:90vh; overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,.18); }
+    .lg2-modal-header { padding:18px 20px 14px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; justify-content:space-between; }
+    .lg2-modal-header h3 { font-size:16px; font-weight:700; margin:0; }
+    .lg2-modal-body { padding:20px; }
+    .lg2-modal-footer { padding:14px 20px; border-top:1px solid #f0f0f0; display:flex; gap:10px; justify-content:flex-end; }
+    /* ── 폼 ── */
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+    .form-row.full { grid-template-columns:1fr; }
+    .form-group label { display:block; font-size:11px; font-weight:700; color:#555; margin-bottom:5px; }
+    .form-group input, .form-group select, .form-group textarea { width:100%; padding:9px 12px; border:1.5px solid #ddd; border-radius:8px; font-size:13px; font-family:'Noto Sans KR',sans-serif; box-sizing:border-box; }
+    .form-group input:focus, .form-group select:focus { border-color:var(--primary); outline:none; }
+    /* ── 자동완성 드롭다운 ── */
+    .autocomplete-wrap { position:relative; }
+    .autocomplete-list { position:absolute; top:100%; left:0; right:0; background:#fff; border:1.5px solid #ddd; border-radius:0 0 8px 8px; max-height:180px; overflow-y:auto; z-index:500; box-shadow:0 4px 12px rgba(0,0,0,.1); }
+    .autocomplete-list div { padding:8px 12px; cursor:pointer; font-size:13px; }
+    .autocomplete-list div:hover { background:#f0f4ff; }
+    /* ── 바코드 스캔 ── */
+    .scan-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; background:#2980b9; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+    .scan-btn:hover { background:#1f6fa0; }
+    /* ── 수량 환산 미리보기 ── */
+    .qty-preview { font-size:11px; color:#888; margin-top:4px; min-height:16px; }
+    /* ── 재고 상태 배지 ── */
+    .stock-ok { color:#27ae60; font-weight:700; }
+    .stock-low { color:#e67e22; font-weight:700; }
+    .stock-zero { color:#aaa; font-weight:700; }
+    .stock-neg { color:#e74c3c; font-weight:700; }
+    /* ── 스켈레톤 ── */
+    .skeleton { background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:200% 100%; animation:skeleton-loading 1.2s infinite; border-radius:6px; }
+    @keyframes skeleton-loading { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    /* ── 섹션 구분 ── */
+    .section-title { font-size:13px; font-weight:700; color:var(--primary); margin:16px 0 10px; padding-bottom:6px; border-bottom:1.5px solid #e8e8e8; display:flex; align-items:center; gap:8px; }
+    /* ── 버튼 ── */
+    .btn-primary { padding:9px 18px; background:var(--primary); color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .btn-secondary { padding:9px 18px; background:#f8f9fa; color:#555; border:1px solid #ddd; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .btn-danger { padding:9px 18px; background:#e74c3c; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .btn-sm { padding:5px 10px; font-size:11px; border-radius:6px; }
+    /* ── 카메라 스캔 뷰 ── */
+    #lg2ScanModal video { width:100%; border-radius:8px; }
+    /* ── 재고실사 ── */
+    .audit-row-diff { background:#fff8e1 !important; }
+    .audit-row-ok { background:#f0fff4 !important; }
+  </style>
+</head>
+<body>
+  <!-- 사이드바 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-wrap">
+        <div class="logo-icon"><i class="fas fa-coffee"></i></div>
+        <div class="logo-text"><span class="brand">라이프컬처</span><span class="sub">생산관리 시스템</span></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>홈</span></a>
+      <a href="materials-master.html" class="nav-item"><i class="fas fa-cubes"></i><span>원부재료 마스터</span></a>
+      <a href="raw-materials.html" class="nav-item"><i class="fas fa-box-open"></i><span>원료수불부</span></a>
+      <a href="vendors.html" class="nav-item"><i class="fas fa-handshake"></i><span>거래처 정보</span></a>
+      <a href="logistics.html" class="nav-item"><i class="fas fa-truck"></i><span>물류관리</span></a>
+      <a href="logistics2.html" class="nav-item active"><i class="fas fa-warehouse"></i><span>물류관리2</span></a>
+      <a href="products.html" class="nav-item"><i class="fas fa-tag"></i><span>제품마스터정보</span></a>
+      <a href="sales.html" class="nav-item"><i class="fas fa-shopping-cart"></i><span>온라인몰 판매</span></a>
+      <a href="traceability.html" class="nav-item"><i class="fas fa-search"></i><span>품질관리</span></a>
+    </nav>
+  </aside>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="main-content" id="mainContent">
+    <!-- 상단 헤더 -->
+    <div class="page-header">
+      <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+      <div class="page-title-wrap">
+        <h1 class="page-title"><i class="fas fa-warehouse" style="color:var(--primary)"></i> 물류관리2</h1>
+        <p class="page-subtitle">일반창고(W) · 저온창고(C) — 입출고 · 재고실사 · 전체현황</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-secondary btn-sm" onclick="lg2Backup()"><i class="fas fa-download"></i> 백업</button>
+        <button class="btn-secondary btn-sm" onclick="document.getElementById('lg2RestoreFile').click()"><i class="fas fa-upload"></i> 복구</button>
+        <input type="file" id="lg2RestoreFile" accept=".json" style="display:none" onchange="lg2Restore(this)" />
+        <button class="btn-secondary btn-sm" onclick="lg2ExportExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
+        <button class="btn-danger btn-sm" onclick="lg2DeleteAll()"><i class="fas fa-trash-alt"></i> 전체삭제</button>
+      </div>
+    </div>
+
+    <!-- 탭 바 -->
+    <div class="tab-bar-wrap">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="lg2SwitchTab('overview')" id="lg2Tab_overview"><i class="fas fa-chart-bar"></i> 전체현황</button>
+        <button class="tab-btn" onclick="lg2SwitchTab('inbound')" id="lg2Tab_inbound"><i class="fas fa-sign-in-alt"></i> 입고관리</button>
+        <button class="tab-btn" onclick="lg2SwitchTab('outbound')" id="lg2Tab_outbound"><i class="fas fa-sign-out-alt"></i> 출고관리</button>
+        <button class="tab-btn" onclick="lg2SwitchTab('audit')" id="lg2Tab_audit"><i class="fas fa-clipboard-check"></i> 재고실사</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- 전체현황 탭 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="tab-content active" id="lg2Content_overview">
+      <!-- KPI -->
+      <div class="kpi-grid" id="lg2KpiGrid">
+        <div class="kpi-card"><div class="kpi-val" id="lg2KpiTotal">-</div><div class="kpi-label">총 품목 수</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="lg2KpiW">-</div><div class="kpi-label">일반창고(W)</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="lg2KpiC">-</div><div class="kpi-label">저온창고(C)</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="lg2KpiLow" style="color:#e67e22">-</div><div class="kpi-label">부족 품목</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="lg2KpiZero" style="color:#aaa">-</div><div class="kpi-label">재고없음</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="lg2KpiExpiry" style="color:#e74c3c">-</div><div class="kpi-label">소비기한 임박(30일)</div></div>
+      </div>
+      <!-- 필터 -->
+      <div class="filter-bar">
+        <div class="form-group">
+          <label>창고</label>
+          <select id="lg2OvWarehouse" onchange="lg2RenderOverview()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
+            <option value="">전체</option>
+            <option value="W">🏭 일반창고(W)</option>
+            <option value="C">❄️ 저온창고(C)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>검색</label>
+          <input type="text" id="lg2OvSearch" placeholder="품목명 검색..." oninput="lg2RenderOverview()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end;gap:6px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="lg2OvShowZero" onchange="lg2RenderOverview()" /> 재고없음 포함
+          </label>
+        </div>
+      </div>
+      <!-- 테이블 -->
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>품목명</th>
+              <th>창고</th>
+              <th>소비기한</th>
+              <th style="text-align:right">입고(ea)</th>
+              <th style="text-align:right">출고(ea)</th>
+              <th style="text-align:right">현재고(ea)</th>
+              <th style="text-align:right">현재고(Box)</th>
+              <th style="text-align:right">현재고(PT)</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody id="lg2OvBody">
+            <tr><td colspan="9" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- 입고관리 탭 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="tab-content" id="lg2Content_inbound">
+      <!-- 툴바 -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="lg2OpenInboundModal()"><i class="fas fa-plus"></i> 입고 등록</button>
+        <button class="scan-btn" onclick="lg2OpenScanModal('inbound')"><i class="fas fa-barcode"></i> 바코드 스캔 입고</button>
+        <button class="btn-secondary btn-sm" onclick="lg2ExportInboundExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
+        <div style="flex:1"></div>
+        <input type="text" id="lg2InSearch" placeholder="품목명 검색..." oninput="lg2RenderInbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+        <select id="lg2InWarehouse" onchange="lg2RenderInbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
+          <option value="">전체 창고</option>
+          <option value="W">🏭 일반창고(W)</option>
+          <option value="C">❄️ 저온창고(C)</option>
+        </select>
+      </div>
+      <!-- 테이블 -->
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>입고일</th>
+              <th>품목명</th>
+              <th>창고</th>
+              <th style="text-align:right">수량(ea)</th>
+              <th style="text-align:right">Box</th>
+              <th style="text-align:right">PT</th>
+              <th>소비기한</th>
+              <th>공급업체</th>
+              <th>담당자</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="lg2InBody">
+            <tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- 출고관리 탭 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="tab-content" id="lg2Content_outbound">
+      <!-- 툴바 -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="lg2OpenOutboundModal()"><i class="fas fa-plus"></i> 출고 등록</button>
+        <button class="scan-btn" onclick="lg2OpenScanModal('outbound')"><i class="fas fa-barcode"></i> 바코드 스캔 출고</button>
+        <button class="btn-secondary btn-sm" onclick="lg2ExportOutboundExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
+        <div style="flex:1"></div>
+        <input type="text" id="lg2OutSearch" placeholder="품목명 검색..." oninput="lg2RenderOutbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+        <select id="lg2OutWarehouse" onchange="lg2RenderOutbound()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
+          <option value="">전체 창고</option>
+          <option value="W">🏭 일반창고(W)</option>
+          <option value="C">❄️ 저온창고(C)</option>
+        </select>
+      </div>
+      <!-- 테이블 -->
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>출고일</th>
+              <th>품목명</th>
+              <th>창고</th>
+              <th style="text-align:right">수량(ea)</th>
+              <th style="text-align:right">Box</th>
+              <th style="text-align:right">PT</th>
+              <th>출고처</th>
+              <th>담당자</th>
+              <th>비고</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="lg2OutBody">
+            <tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════ -->
+    <!-- 재고실사 탭 -->
+    <!-- ══════════════════════════════════════════ -->
+    <div class="tab-content" id="lg2Content_audit">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+        <button class="btn-primary" onclick="lg2OpenAuditModal()"><i class="fas fa-plus"></i> 실사 등록</button>
+        <button class="btn-secondary btn-sm" onclick="lg2ExportAuditExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
+        <div style="flex:1"></div>
+        <input type="text" id="lg2AuditSearch" placeholder="품목명 검색..." oninput="lg2RenderAudit()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>실사일</th>
+              <th>품목명</th>
+              <th>창고</th>
+              <th style="text-align:right">시스템재고(ea)</th>
+              <th style="text-align:right">실사수량(ea)</th>
+              <th style="text-align:right">차이(ea)</th>
+              <th>소비기한</th>
+              <th>담당자</th>
+              <th>비고</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="lg2AuditBody">
+            <tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- 하단 네비게이션 -->
+  <nav class="bottom-nav">
+    <a href="index.html" class="bottom-nav-item"><i class="fas fa-home"></i><span>홈</span></a>
+    <button class="bottom-nav-item" onclick="openTeamMenu('logistics')"><i class="fas fa-truck"></i><span>물류팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('production')"><i class="fas fa-industry"></i><span>생산팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('sales')"><i class="fas fa-shopping-cart"></i><span>영업팀</span></button>
+    <a href="traceability.html" class="bottom-nav-item"><i class="fas fa-search"></i><span>품질관리</span></a>
+  </nav>
+
+  <!-- 팀 메뉴 오버레이 (index.html 동일) -->
+  <div id="moreMenuOverlay" class="more-menu-overlay" onclick="closeTeamMenu()" style="display:none"></div>
+  <div id="moreMenuSheet" class="more-menu-sheet" style="display:none">
+    <div id="teamMenu_logistics" style="display:none">
+      <div class="more-menu-title">물류팀</div>
+      <a href="materials-master.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-cubes" style="background:#e8f4fd;color:#2980b9"></i>원부재료 마스터</a>
+      <a href="raw-materials.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-box-open" style="background:#fef9e7;color:#d68910"></i>원료수불부 (자체생산)</a>
+      <a href="vendors.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-handshake" style="background:#eafaf1;color:#27ae60"></i>거래처 정보</a>
+      <a href="logistics.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-truck" style="background:#f0f4ff;color:#3498db"></i>물류관리 (수입/OEM/자체)</a>
+      <a href="logistics2.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-warehouse" style="background:#e8f8f5;color:#1abc9c"></i>물류관리2 (일반/저온창고)</a>
+    </div>
+    <div id="teamMenu_production" style="display:none">
+      <div class="more-menu-title">생산팀 — 생산일지</div>
+      <a href="roasting.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-fire" style="background:#fff0ec;color:#e17055"></i>로스팅 생산일지</a>
+      <a href="grinding.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-cog" style="background:#f0f4ff;color:#6c5ce7"></i>분쇄 생산일지</a>
+      <a href="extraction.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-tint" style="background:#e8f4fd;color:#3498db"></i>추출 생산일지</a>
+      <a href="bottle-packing.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-wine-bottle" style="background:#e8f8f5;color:#1abc9c"></i>제품(병) 포장일지</a>
+      <a href="box-packing.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-boxes" style="background:#eafaf1;color:#27ae60"></i>완제품(박스) 포장일지</a>
+    </div>
+    <div id="teamMenu_sales" style="display:none">
+      <div class="more-menu-title">영업팀</div>
+      <a href="products.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-tag" style="background:#fef9e7;color:#d68910"></i>제품마스터정보</a>
+      <a href="sales.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-shopping-cart" style="background:#f8d7da;color:#c0392b"></i>온라인몰 판매</a>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- 입고 등록 모달 -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="lg2-modal-overlay" id="lg2InboundModal">
+    <div class="lg2-modal">
+      <div class="lg2-modal-header">
+        <h3 id="lg2InboundModalTitle"><i class="fas fa-sign-in-alt" style="color:var(--primary)"></i> 입고 등록</h3>
+        <button onclick="lg2CloseInboundModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999">&times;</button>
+      </div>
+      <div class="lg2-modal-body">
+        <input type="hidden" id="lg2InEditId" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>입고일 <span style="color:#e74c3c">*</span></label>
+            <input type="date" id="lg2InDate" />
+          </div>
+          <div class="form-group">
+            <label>창고 <span style="color:#e74c3c">*</span></label>
+            <select id="lg2InWarehouseModal">
+              <option value="W">🏭 일반창고 (W)</option>
+              <option value="C">❄️ 저온창고 (C)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>품목명 <span style="color:#e74c3c">*</span></label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="lg2InItem" placeholder="품목명 입력 또는 선택..." oninput="lg2Autocomplete('lg2InItem','lg2InItemList')" autocomplete="off" />
+              <div class="autocomplete-list" id="lg2InItemList" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>수량(ea) <span style="color:#e74c3c">*</span></label>
+            <input type="number" id="lg2InQty" min="1" placeholder="0" oninput="lg2UpdateQtyPreview('lg2InItem','lg2InQty','lg2InQtyPreview')" />
+            <div class="qty-preview" id="lg2InQtyPreview"></div>
+          </div>
+          <div class="form-group">
+            <label>소비기한</label>
+            <input type="date" id="lg2InExpiry" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>공급업체</label>
+            <input type="text" id="lg2InSupplier" placeholder="공급업체명" />
+          </div>
+          <div class="form-group">
+            <label>담당자</label>
+            <input type="text" id="lg2InManager" placeholder="담당자명" />
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>비고</label>
+            <input type="text" id="lg2InMemo" placeholder="메모 (선택)" />
+          </div>
+        </div>
+      </div>
+      <div class="lg2-modal-footer">
+        <button class="btn-secondary" onclick="lg2CloseInboundModal()">취소</button>
+        <button class="btn-primary" onclick="lg2SaveInbound()"><i class="fas fa-save"></i> 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- 출고 등록 모달 -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="lg2-modal-overlay" id="lg2OutboundModal">
+    <div class="lg2-modal">
+      <div class="lg2-modal-header">
+        <h3 id="lg2OutboundModalTitle"><i class="fas fa-sign-out-alt" style="color:#e74c3c"></i> 출고 등록</h3>
+        <button onclick="lg2CloseOutboundModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999">&times;</button>
+      </div>
+      <div class="lg2-modal-body">
+        <input type="hidden" id="lg2OutEditId" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>출고일 <span style="color:#e74c3c">*</span></label>
+            <input type="date" id="lg2OutDate" />
+          </div>
+          <div class="form-group">
+            <label>창고 <span style="color:#e74c3c">*</span></label>
+            <select id="lg2OutWarehouseModal">
+              <option value="W">🏭 일반창고 (W)</option>
+              <option value="C">❄️ 저온창고 (C)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>품목명 <span style="color:#e74c3c">*</span></label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="lg2OutItem" placeholder="품목명 입력 또는 선택..." oninput="lg2Autocomplete('lg2OutItem','lg2OutItemList')" autocomplete="off" />
+              <div class="autocomplete-list" id="lg2OutItemList" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>수량(ea) <span style="color:#e74c3c">*</span></label>
+            <input type="number" id="lg2OutQty" min="1" placeholder="0" oninput="lg2UpdateQtyPreview('lg2OutItem','lg2OutQty','lg2OutQtyPreview')" />
+            <div class="qty-preview" id="lg2OutQtyPreview"></div>
+          </div>
+          <div class="form-group">
+            <label>출고처</label>
+            <input type="text" id="lg2OutDest" placeholder="출고처명" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>담당자</label>
+            <input type="text" id="lg2OutManager" placeholder="담당자명" />
+          </div>
+          <div class="form-group">
+            <label>비고</label>
+            <input type="text" id="lg2OutMemo" placeholder="메모 (선택)" />
+          </div>
+        </div>
+        <!-- FIFO 재고 현황 미리보기 -->
+        <div id="lg2OutFifoPreview" style="display:none;background:#f8f9fa;border-radius:8px;padding:12px;margin-top:8px">
+          <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">📦 선입선출(FIFO) 재고 현황</div>
+          <div id="lg2OutFifoBody" style="font-size:12px"></div>
+        </div>
+      </div>
+      <div class="lg2-modal-footer">
+        <button class="btn-secondary" onclick="lg2CloseOutboundModal()">취소</button>
+        <button class="btn-primary" onclick="lg2SaveOutbound()"><i class="fas fa-save"></i> 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- 재고실사 등록 모달 -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="lg2-modal-overlay" id="lg2AuditModal">
+    <div class="lg2-modal">
+      <div class="lg2-modal-header">
+        <h3><i class="fas fa-clipboard-check" style="color:#8e44ad"></i> 재고실사 등록</h3>
+        <button onclick="lg2CloseAuditModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999">&times;</button>
+      </div>
+      <div class="lg2-modal-body">
+        <input type="hidden" id="lg2AuditEditId" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>실사일 <span style="color:#e74c3c">*</span></label>
+            <input type="date" id="lg2AuditDate" />
+          </div>
+          <div class="form-group">
+            <label>창고 <span style="color:#e74c3c">*</span></label>
+            <select id="lg2AuditWarehouse">
+              <option value="W">🏭 일반창고 (W)</option>
+              <option value="C">❄️ 저온창고 (C)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>품목명 <span style="color:#e74c3c">*</span></label>
+            <div class="autocomplete-wrap">
+              <input type="text" id="lg2AuditItem" placeholder="품목명 입력 또는 선택..." oninput="lg2Autocomplete('lg2AuditItem','lg2AuditItemList');lg2UpdateAuditSystem()" autocomplete="off" />
+              <div class="autocomplete-list" id="lg2AuditItemList" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>시스템 재고(ea)</label>
+            <input type="number" id="lg2AuditSystem" readonly style="background:#f8f9fa;color:#888" />
+          </div>
+          <div class="form-group">
+            <label>실사 수량(ea) <span style="color:#e74c3c">*</span></label>
+            <input type="number" id="lg2AuditActual" min="0" placeholder="0" oninput="lg2UpdateAuditDiff()" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>차이(ea)</label>
+            <input type="number" id="lg2AuditDiff" readonly style="background:#f8f9fa;color:#888" />
+          </div>
+          <div class="form-group">
+            <label>소비기한</label>
+            <input type="date" id="lg2AuditExpiry" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>담당자</label>
+            <input type="text" id="lg2AuditManager" placeholder="담당자명" />
+          </div>
+          <div class="form-group">
+            <label>비고</label>
+            <input type="text" id="lg2AuditMemo" placeholder="메모 (선택)" />
+          </div>
+        </div>
+      </div>
+      <div class="lg2-modal-footer">
+        <button class="btn-secondary" onclick="lg2CloseAuditModal()">취소</button>
+        <button class="btn-primary" onclick="lg2SaveAudit()"><i class="fas fa-save"></i> 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- 바코드 스캔 모달 -->
+  <!-- ══════════════════════════════════════════ -->
+  <div class="lg2-modal-overlay" id="lg2ScanModal">
+    <div class="lg2-modal" style="max-width:400px">
+      <div class="lg2-modal-header">
+        <h3 id="lg2ScanModalTitle"><i class="fas fa-barcode"></i> 바코드 스캔</h3>
+        <button onclick="lg2CloseScanModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999">&times;</button>
+      </div>
+      <div class="lg2-modal-body">
+        <p style="font-size:12px;color:#888;margin-bottom:12px">카메라로 바코드를 스캔하거나, 바코드 번호를 직접 입력하세요.</p>
+        <video id="lg2ScanVideo" autoplay playsinline style="width:100%;border-radius:8px;background:#000;min-height:200px"></video>
+        <canvas id="lg2ScanCanvas" style="display:none"></canvas>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <input type="text" id="lg2ScanInput" placeholder="바코드 번호 직접 입력..." style="flex:1;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')lg2ProcessScan()" />
+          <button class="btn-primary" onclick="lg2ProcessScan()">확인</button>
+        </div>
+        <div id="lg2ScanResult" style="margin-top:10px;font-size:13px;color:#27ae60;font-weight:700;min-height:20px"></div>
+        <!-- 스캔 후 수량 입력 (출고 전용) -->
+        <div id="lg2ScanQtyWrap" style="display:none;margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px">
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="lg2ScanProductName"></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" id="lg2ScanQty" min="1" placeholder="출고 수량(ea)" style="flex:1;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px" />
+            <button class="btn-primary" onclick="lg2ConfirmScanOut()">출고</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 스크립트 -->
+  <script src="js/auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-init.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/pwa.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="js/logistics2.js"></script>
+  <script src="js/verify.js"></script>
+  <script>
+    function openTeamMenu(t) {
+      ['logistics','production','sales'].forEach(function(x) {
+        document.getElementById('teamMenu_'+x).style.display = (x===t)?'block':'none';
+      });
+      document.getElementById('moreMenuOverlay').style.display = 'block';
+      document.getElementById('moreMenuSheet').style.display = 'block';
+    }
+    function closeTeamMenu() {
+      document.getElementById('moreMenuOverlay').style.display = 'none';
+      document.getElementById('moreMenuSheet').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
