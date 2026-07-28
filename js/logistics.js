@@ -664,87 +664,153 @@ function lgResetForm() {
 // =====================================================
 // 엑셀 내보내기
 // =====================================================
-function lgExport(tab) {
+async function lgExport(tab) {
   // tab === 'all' 일 때: 현재 재고 현황 테이블 데이터를 출력
   if (tab === 'all') {
-    // lgRenderStockTable과 동일한 로직으로 stockMap 집계
-    var stockMap = {};
-    var today = new Date();
+    if (!_lgProductCache) {
+      try { await lgGetProductCache(); } catch(e) { _lgProductCache = []; }
+    }
 
-    // 1패스: logistics 입고 (WH-IN- 제외)
+    var q = (document.getElementById('stockSearch') ? document.getElementById('stockSearch').value : '').toLowerCase();
+    var typeF = document.getElementById('allTypeFilter') ? document.getElementById('allTypeFilter').value : '';
+    var stockMap = {};
+
+    // 1패스: logistics 입고 (WH-IN- 제외 → 중복 방지)
     allLogisticsData.forEach(function(r) {
       if ((r.lot_no || '').startsWith('WH-IN-')) return;
-      if (r.transaction_type !== '입고') return;
-      var name = r.product_name || '미상'; var expiry = r.expiry_date || ''; var unit = r.unit || 'ea'; var ptype = r.product_type || '';
-      var key = name + '|' + expiry;
-      if (!stockMap[key]) stockMap[key] = { name: name, expiry: expiry, unit: unit, ptype: ptype, inQty: 0, outQty: 0 };
-      stockMap[key].inQty += Number(r.quantity) || 0;
-    });
-    // 2패스: logistics 출고 (WH-OUT- 제외)
-    allLogisticsData.forEach(function(r) {
-      if ((r.lot_no || '').startsWith('WH-OUT-')) return;
-      if (r.transaction_type !== '출고') return;
-      var name = r.product_name || '미상'; var expiry = r.expiry_date || '';
-      var key = name + '|' + expiry;
-      if (stockMap[key]) { stockMap[key].outQty += Number(r.quantity) || 0; }
-      else {
-        var matchedKey = null;
-        Object.keys(stockMap).forEach(function(k) {
-          if (stockMap[k].name === name) { if (!matchedKey || (stockMap[k].expiry||'9999') < (stockMap[matchedKey].expiry||'9999')) matchedKey = k; }
-        });
-        if (matchedKey) stockMap[matchedKey].outQty += Number(r.quantity) || 0;
-        else stockMap[key] = { name: name, expiry: expiry, unit: (r.unit||'ea'), ptype: (r.product_type||''), inQty: 0, outQty: Number(r.quantity)||0 };
+      var name = (r.product_name || r.item_name || '').trim();
+      var expiry = (r.expiry_date || r.expiry || '').trim();
+      var unit = (r.unit || 'ea').trim();
+      var ptype = (r.product_type || '').trim();
+      var qty = Number(r.quantity || r.qty || 0);
+      var tx = (r.transaction_type || '입고').trim();
+      if (!name) return;
+      if (tx !== '입고' && tx !== '반품') return;
+      var key = name + '||' + expiry;
+      if (!stockMap[key]) {
+        stockMap[key] = { name: name, expiry: expiry, unit: unit, ptype: ptype, inQty: 0, outQty: 0,
+          inQty_ea: 0, inQty_box: 0, inQty_pt: 0, outQty_ea: 0, outQty_box: 0, outQty_pt: 0 };
       }
+      stockMap[key].inQty += qty;
+      stockMap[key].inQty_ea += Number(r.qty_ea !== undefined ? r.qty_ea : qty) || 0;
+      stockMap[key].inQty_box += Number(r.qty_box || 0);
+      stockMap[key].inQty_pt += Number(r.qty_pt || 0);
     });
-    // 3패스: wh_inbound 전체
-    if (typeof allWhInboundData !== 'undefined') {
-      allWhInboundData.forEach(function(r) {
-        var name = r.item_name || '미상'; var expiry = r.expiry_date || ''; var unit = r.unit || 'ea'; var ptype = r.product_type || '';
-        var key = name + '|' + expiry;
-        if (!stockMap[key]) stockMap[key] = { name: name, expiry: expiry, unit: unit, ptype: ptype, inQty: 0, outQty: 0 };
-        stockMap[key].inQty += Number(r.qty) || 0;
-        if (!stockMap[key].ptype) stockMap[key].ptype = ptype;
+
+    function buildNameIndex() {
+      var idx = {};
+      Object.keys(stockMap).forEach(function(k) {
+        var n = k.split('||')[0];
+        if (!idx[n] || (stockMap[k].expiry || '9999') < (stockMap[idx[n]].expiry || '9999')) idx[n] = k;
       });
-    }
-    // 4패스: wh_outbound 전체
-    if (typeof allWhOutboundData !== 'undefined') {
-      allWhOutboundData.forEach(function(r) {
-        var name = r.item_name || '미상'; var expiry = r.expiry_date || '';
-        var key = name + '|' + expiry;
-        if (stockMap[key]) { stockMap[key].outQty += Number(r.qty) || 0; }
-        else {
-          var matchedKey = null;
-          Object.keys(stockMap).forEach(function(k) {
-            if (stockMap[k].name === name) { if (!matchedKey || (stockMap[k].expiry||'9999') < (stockMap[matchedKey].expiry||'9999')) matchedKey = k; }
-          });
-          if (matchedKey) stockMap[matchedKey].outQty += Number(r.qty) || 0;
-        }
-      });
+      return idx;
     }
 
+    // 2패스: logistics 출고 (WH-OUT- 제외 → 중복 방지)
+    var nameIdx2 = buildNameIndex();
+    allLogisticsData.forEach(function(r) {
+      if ((r.lot_no || '').startsWith('WH-OUT-')) return;
+      var name = (r.product_name || r.item_name || '').trim();
+      var expiry = (r.expiry_date || r.expiry || '').trim();
+      var qty = Number(r.quantity || r.qty || 0);
+      var tx = (r.transaction_type || '입고').trim();
+      if (!name || tx !== '출고') return;
+      var key = name + '||' + expiry;
+      var targetKey = stockMap[key] ? key : (nameIdx2[name] || null);
+      if (!targetKey) {
+        stockMap[key] = { name: name, expiry: expiry, unit: (r.unit || 'ea'), ptype: (r.product_type || ''), inQty: 0, outQty: 0,
+          inQty_ea: 0, inQty_box: 0, inQty_pt: 0, outQty_ea: 0, outQty_box: 0, outQty_pt: 0 };
+        targetKey = key;
+      }
+      stockMap[targetKey].outQty += qty;
+      stockMap[targetKey].outQty_ea += Number(r.qty_ea !== undefined ? r.qty_ea : qty) || 0;
+      stockMap[targetKey].outQty_box += Number(r.qty_box || 0);
+      stockMap[targetKey].outQty_pt += Number(r.qty_pt || 0);
+    });
+
+    // 3패스: wh_inbound 전체 직접 집계
+    (allWhInboundData || []).forEach(function(r) {
+      var name = (r.item_name || '').trim();
+      var expiry = (r.expiry_date || '').trim();
+      var unit = (r.unit || 'ea').trim();
+      var ptype = r.inbound_type || '수입제품';
+      var qty = Number(r.qty || 0);
+      if (!name || !qty) return;
+      var key = name + '||' + expiry;
+      if (!stockMap[key]) {
+        stockMap[key] = { name: name, expiry: expiry, unit: unit, ptype: ptype, inQty: 0, outQty: 0,
+          inQty_ea: 0, inQty_box: 0, inQty_pt: 0, outQty_ea: 0, outQty_box: 0, outQty_pt: 0 };
+      }
+      stockMap[key].inQty += qty;
+      stockMap[key].inQty_ea += Number(r.qty_ea !== undefined ? r.qty_ea : qty) || 0;
+      stockMap[key].inQty_box += Number(r.qty_box || 0);
+      stockMap[key].inQty_pt += Number(r.qty_pt || 0);
+      if (!stockMap[key].ptype) stockMap[key].ptype = ptype;
+    });
+
+    // 4패스: wh_outbound 전체 직접 집계
+    var _whInLotMap = {};
+    (allWhInboundData || []).forEach(function(r) {
+      if (r.lot_no) _whInLotMap[r.lot_no] = r;
+    });
+    (allWhOutboundData || []).forEach(function(r) {
+      var name = (r.item_name || '').trim();
+      var qty = Number(r.qty || 0);
+      if (!name || !qty) return;
+      var expiry = (r.expiry_date || '').trim();
+      var exactKey = name + '||' + expiry;
+      var matchedKey = null;
+      if (stockMap[exactKey]) {
+        matchedKey = exactKey;
+      } else if (!expiry && r.ref_lot && _whInLotMap[r.ref_lot]) {
+        var refExpiry = (_whInLotMap[r.ref_lot].expiry_date || '').trim();
+        var refKey = name + '||' + refExpiry;
+        if (stockMap[refKey]) matchedKey = refKey;
+      }
+      if (!matchedKey) {
+        var candidates = Object.keys(stockMap).filter(function(k) {
+          return k.startsWith(name + '||');
+        });
+        if (candidates.length > 0) {
+          candidates.sort(function(a, b) {
+            var stockA = stockMap[a].inQty - stockMap[a].outQty;
+            var stockB = stockMap[b].inQty - stockMap[b].outQty;
+            if (stockA > 0 && stockB <= 0) return -1;
+            if (stockA <= 0 && stockB > 0) return 1;
+            return (stockMap[a].expiry || '9999').localeCompare(stockMap[b].expiry || '9999');
+          });
+          matchedKey = candidates[0];
+        }
+      }
+      if (!matchedKey) {
+        matchedKey = name + '||' + expiry;
+        stockMap[matchedKey] = { name: name, expiry: expiry, unit: (r.unit || 'ea'), ptype: '', inQty: 0, outQty: 0,
+          inQty_ea: 0, inQty_box: 0, inQty_pt: 0, outQty_ea: 0, outQty_box: 0, outQty_pt: 0 };
+      }
+      stockMap[matchedKey].outQty += qty;
+      stockMap[matchedKey].outQty_ea += Number(r.qty_ea !== undefined ? r.qty_ea : qty) || 0;
+      stockMap[matchedKey].outQty_box += Number(r.qty_box || 0);
+      stockMap[matchedKey].outQty_pt += Number(r.qty_pt || 0);
+    });
+
     var rows = Object.values(stockMap);
-    // 필터 (전체현황 탭 필터 조건 적용)
-    var typeF = document.getElementById('allTypeFilter') ? document.getElementById('allTypeFilter').value : '';
-    var q = document.getElementById('stockSearch') ? document.getElementById('stockSearch').value.toLowerCase() : '';
     if (q) rows = rows.filter(function(r) { return r.name.toLowerCase().indexOf(q) !== -1; });
     if (typeF) rows = rows.filter(function(r) { return r.ptype === typeF; });
+    else rows = rows.filter(function(r) { return r.ptype !== '회수입고'; });
+    var hideZeroEl = document.getElementById('stockHideZero');
+    var showZero = hideZeroEl ? hideZeroEl.checked : false;
+    if (!showZero) rows = rows.filter(function(r) { return (r.inQty - r.outQty) > 0; });
     rows.sort(function(a, b) {
       if (a.name !== b.name) return a.name.localeCompare(b.name);
       return (a.expiry || '').localeCompare(b.expiry || '');
     });
 
-    // ── SheetJS xlsx 서식 다운로드 ──
-    var _expProducts = typeof _lgProductCache !== 'undefined' ? (_lgProductCache || []) : [];
+    var expProducts = _lgProductCache || [];
     var wb = XLSX.utils.book_new();
     var wsData = [];
-
-    // 행1: 대제목
     wsData.push(['현재 재고 현황', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-    // 행2: 다운로드 날짜
     wsData.push(['다운로드: ' + new Date().toLocaleDateString('ko-KR'), '', '', '', '', '', '', '', '', '', '', '', '', '']);
-    // 행3: 빈 행
     wsData.push([]);
-    // 행4: 그룹 헤더
     wsData.push(['제품명', '제품규격', '제품유형', '소비기한',
       '입고수량(ea)', '입고수량(Box)', '입고수량(PT)',
       '출고수량(ea)', '출고수량(Box)', '출고수량(PT)',
@@ -752,39 +818,32 @@ function lgExport(tab) {
       '단위', '상태']);
 
     var typeColors = { '수입제품': 'FF2980B9', 'OEM제품': 'FFD68910', '자체생산': 'FF1E8449', '회수입고': 'FF8E44AD', '기타': 'FF888888' };
-    var statusColors = { '정상': 'FF1E8449', '부족': 'FFD68910', '재고없음': 'FFAAAAAA', '기한만료': 'FFE74C3C' };
+    var statusColors = { '정상': 'FF1E8449', '부족': 'FFD68910', '재고없음': 'FFAAAAAA', '마이너스': 'FFE74C3C' };
 
     rows.forEach(function(r) {
       var stock = r.inQty - r.outQty;
-      var status = stock <= 0 ? '재고없음' : stock <= 10 ? '부족' : '정상';
-      if (r.expiry) {
-        var diff = Math.floor((new Date(r.expiry) - today) / (1000 * 60 * 60 * 24));
-        if (diff < 0) status = '기한만료';
-        else if (diff <= 30) status = '임박(' + diff + '일)';
-      }
-      var _pm = _expProducts.find(function(p) { return (p.product_name||'').trim() === r.name; });
-      var _spec = _pm ? (_pm.product_spec || _pm.spec || '') : '';
-      var _qpb = _pm ? (parseInt(_pm.qty_per_box) || 0) : 0;
-      var _bpp = _pm ? (parseInt(_pm.boxes_per_pallet) || 0) : 0;
-      var inEa = r.inQty_ea || r.inQty;
-      var inBox = r.inQty_box || (_qpb > 0 ? Math.floor(inEa / _qpb) : 0);
-      var inPt  = r.inQty_pt  || (_bpp > 0 ? Math.floor(inBox / _bpp) : 0);
-      var outEa = r.outQty_ea || r.outQty;
-      var outBox = r.outQty_box || (_qpb > 0 ? Math.floor(outEa / _qpb) : 0);
-      var outPt  = r.outQty_pt  || (_bpp > 0 ? Math.floor(outBox / _bpp) : 0);
-      var curEa  = inEa - outEa;
-      var curBox = _qpb > 0 ? Math.floor(curEa / _qpb) : (inBox - outBox);
-      var curPt  = _bpp > 0 ? Math.floor(curBox / _bpp) : (inPt - outPt);
-      wsData.push([r.name, _spec || '-', r.ptype || '-', r.expiry || '-',
+      var stockEa = r.inQty_ea - r.outQty_ea;
+      var pmMatch = expProducts.find(function(p) { return (p.product_name || '').trim() === r.name; });
+      var qpb = pmMatch ? (parseInt(pmMatch.qty_per_box) || 0) : 0;
+      var bpp = pmMatch ? (parseInt(pmMatch.boxes_per_pallet) || 0) : 0;
+      var specVal = pmMatch ? (pmMatch.specification || pmMatch.spec_code || '') : '';
+      var inEa = r.inQty_ea || 0;
+      var inBox = r.inQty_box || (qpb > 0 ? Math.floor(inEa / qpb) : 0);
+      var inPt = r.inQty_pt || ((qpb > 0 && bpp > 0) ? Math.floor(inEa / (qpb * bpp)) : 0);
+      var outEa = r.outQty_ea || 0;
+      var outBox = r.outQty_box || (qpb > 0 ? Math.floor(outEa / qpb) : 0);
+      var outPt = r.outQty_pt || ((qpb > 0 && bpp > 0) ? Math.floor(outEa / (qpb * bpp)) : 0);
+      var stockBox = qpb > 0 ? Math.floor(stockEa / qpb) : 0;
+      var stockPt = (qpb > 0 && bpp > 0) ? Math.floor(stockEa / (qpb * bpp)) : 0;
+      var status = stock < 0 ? '마이너스' : (stock === 0 ? '재고없음' : (stock <= 10 ? '부족' : '정상'));
+      wsData.push([r.name, specVal || '-', r.ptype || '-', r.expiry || '-',
         inEa, inBox, inPt,
         outEa, outBox, outPt,
-        curEa, curBox, curPt,
+        stockEa, stockBox, stockPt,
         r.unit || 'ea', status]);
     });
 
     var ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    // 열 너비 설정
     ws['!cols'] = [
       {wch:28},{wch:16},{wch:10},{wch:12},
       {wch:10},{wch:10},{wch:8},
@@ -792,18 +851,13 @@ function lgExport(tab) {
       {wch:10},{wch:10},{wch:8},
       {wch:6},{wch:10}
     ];
-
-    // 행1 대제목 병합
     ws['!merges'] = [
       { s:{r:0,c:0}, e:{r:0,c:14} },
       { s:{r:1,c:0}, e:{r:1,c:14} }
     ];
 
-    // 셀 스타일 적용 (SheetJS Pro 없이 기본 스타일만)
-    var headerRow = 3; // 0-indexed
+    var headerRow = 3;
     var dataStartRow = 4;
-
-    // 헤더 셀 스타일
     var hdrCols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
     hdrCols.forEach(function(col) {
       var cellRef = col + (headerRow + 1);
@@ -816,12 +870,10 @@ function lgExport(tab) {
       };
     });
 
-    // 데이터 행 스타일 (짝수행 배경)
     for (var ri = dataStartRow; ri < wsData.length; ri++) {
       var rowData = wsData[ri];
       var isEven = (ri - dataStartRow) % 2 === 0;
       var rowBg = isEven ? 'FFFAFAFA' : 'FFFFFFFF';
-      // 현재고 음수 행은 연빨간 배경
       var curEaVal = rowData[10];
       if (typeof curEaVal === 'number' && curEaVal < 0) rowBg = 'FFFFF0F0';
       hdrCols.forEach(function(col, ci) {
@@ -832,17 +884,13 @@ function lgExport(tab) {
           alignment: { vertical: 'center' },
           border: { bottom: { style: 'hair', color: { rgb: 'FFE0E0E0' } } }
         };
-        // 제품유형 컬럼(C) 색상
         if (ci === 2) {
           var tc = typeColors[rowData[2]] || 'FF888888';
           cellStyle.font = { color: { rgb: tc }, bold: true };
           cellStyle.alignment = { horizontal: 'center', vertical: 'center' };
         }
-        // 수량 컬럼 가운데 정렬
         if (ci >= 4 && ci <= 12) cellStyle.alignment = { horizontal: 'center', vertical: 'center' };
-        // 현재고 컬럼 굵게
         if (ci >= 10 && ci <= 12) cellStyle.font = { bold: true };
-        // 상태 컬럼(O) 색상
         if (ci === 14) {
           var sc = statusColors[rowData[14]] || 'FF333333';
           cellStyle.font = { color: { rgb: sc }, bold: true };
