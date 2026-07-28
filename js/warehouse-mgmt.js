@@ -4909,6 +4909,7 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
   var hasStock = Object.values(items).some(function(v) { return (Number(v.qty) || 0) > 0; });
   var card = document.createElement('div');
   card.className = 'wh-full-st-card';
+  card.id = 'whFsCard_' + locCode.replace(/[^a-zA-Z0-9]/g, '_');
   card.dataset.locCode = locCode;
   card.dataset.hasStock = hasStock ? '1' : '0';
   // 카드 자체는 드래그 비활성화 → 드래그 핸들(⠿)에만 드래그 활성화
@@ -4947,7 +4948,7 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
     // 빈 위치: 품목명+수량 직접 입력 폼 표시
     var emptyLocSafeId = locCode.replace(/[^a-zA-Z0-9]/g, '_');
     itemsHtml =
-      '<div id="wfst_new_wrap_' + emptyLocSafeId + '" style="background:#f0fff4;border:1px dashed #27ae60;border-radius:6px;padding:6px 8px">' +
+      '<div id="wfst_new_wrap_' + emptyLocSafeId + '" class="wh-fs-new-form" style="background:#f0fff4;border:1px dashed #27ae60;border-radius:6px;padding:6px 8px">' +
         '<div style="font-size:10px;color:#27ae60;font-weight:700;margin-bottom:5px">+ 품목 직접 입력</div>' +
         '<input type="text" id="wfst_new_name_' + emptyLocSafeId + '" placeholder="품목명" ' +
           'style="width:100%;padding:4px 7px;border:1px solid #b2dfdb;border-radius:4px;font-size:11px;box-sizing:border-box;margin-bottom:4px" />' +
@@ -5090,6 +5091,10 @@ function whCreateFullStocktakeCard(locObj, stockMap) {
   if (newSaveBtn) {
     newSaveBtn.addEventListener('click', function(e) {
       e.stopPropagation();
+      if (newSaveBtn.disabled) return; // 중복 클릭 방지
+      newSaveBtn.disabled = true;
+      newSaveBtn.textContent = '저장중';
+      newSaveBtn.style.opacity = '0.6';
       whFullStNewItemSave(newSaveBtn.dataset.loc, newSaveBtn.dataset.safeId);
     });
   }
@@ -5501,6 +5506,14 @@ async function whFullStNewItemSave(locCode, safeId) {
   var existingAdj = (whInboundData || []).filter(function(r) { return r.lot_no && r.lot_no.startsWith(prefix); });
   var seq = existingAdj.length + 1;
   var lotNo = prefix + '-' + String(seq).padStart(3,'0');
+  // 저장 전 해당 카드를 즉시 저장중 상태로 전환 (사용자에게 저장됨을 즉시 피드백)
+  var cardEl = document.getElementById('whFsCard_' + safeId);
+  if (cardEl) {
+    var newForm = cardEl.querySelector('.wh-fs-new-form');
+    if (newForm) {
+      newForm.innerHTML = '<div style="padding:12px;text-align:center;color:#27ae60;font-size:13px"><i class="fas fa-spinner fa-spin"></i> 저장 중...</div>';
+    }
+  }
   try {
     await apiPost('wh_inbound', {
       lot_no: lotNo,
@@ -5519,9 +5532,17 @@ async function whFullStNewItemSave(locCode, safeId) {
     showToast('저장 완료: ' + locCode + ' / ' + itemName + ' ' + qty + unit, 'success');
     whInvalidateMapCache();
     await whReloadAll();
-    if (_whFullStocktakeUnlocked) whRenderFullStocktakeGrid();
+    // whReloadAll 내부에서 _whFullStocktakeUnlocked 체크 후 whRenderFullStocktakeGrid() 호출됨
+    // (중복 호출 방지 - 이미 whLoadAll에서 처리됨)
   } catch(e) {
     showToast('저장 실패: ' + e.message, 'error');
+    // 저장 실패 시 폼 복원
+    if (cardEl) {
+      var newForm2 = cardEl.querySelector('.wh-fs-new-form');
+      if (newForm2) {
+        newForm2.innerHTML = '<div style="color:#e74c3c;font-size:12px;padding:8px"><i class="fas fa-exclamation-triangle"></i> 저장 실패. 다시 시도해주세요.</div>';
+      }
+    }
   }
 }
 // ── 드래그&드롭 이벤트 핸들러 ──────────────────────────────
