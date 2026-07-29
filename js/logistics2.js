@@ -165,16 +165,17 @@ function lg2GetFifoStock(itemName, warehouse) {
   // ── 실사 기준일이 설정된 경우: 기준일 실사 스냅샷 + 이후 입출고 반영 ──
   if (baseDate) {
     // 1) 기준일 실사 스냅샷 (해당 품목·창고의 가장 최근 전체실사 레코드)
-    //    lg2_audit 중 audit_date <= baseDate 이고 memo='전체 실사 모드' 인 것
+    //    lg2_audit 중 date <= baseDate 인 것 (date 필드명으로 통일)
     var auditSnap = {}; // key: expiry -> actual_qty
     _lg2AuditData.forEach(function(a) {
       if ((a.item_name || '').trim() !== (itemName || '').trim()) return;
       if (wh && a.warehouse !== wh) return;
-      if (!a.audit_date || a.audit_date > baseDate) return;
+      var aDate = a.date || a.audit_date || ''; // 호환성: 이전 audit_date 필드도 지원
+      if (!aDate || aDate > baseDate) return;
       // 같은 소비기한에 여러 실사 레코드가 있으면 가장 최근 것 사용
       var expKey = a.expiry || '';
-      if (!auditSnap[expKey] || a.audit_date > auditSnap[expKey].audit_date) {
-        auditSnap[expKey] = { actual_qty: Number(a.actual_qty) || 0, audit_date: a.audit_date };
+      if (!auditSnap[expKey] || aDate > auditSnap[expKey].audit_date) {
+        auditSnap[expKey] = { actual_qty: Number(a.actual_qty) || 0, audit_date: aDate };
       }
     });
 
@@ -1863,15 +1864,15 @@ async function lg2SaveFullAudit() {
       var rec  = records[i];
       var diff = rec.diff;
 
-      // 실사 이력 저장
+      // 실사 이력 저장 (일반 실사 모달과 동일한 필드명 사용)
       await apiPost('lg2_audit', {
-        audit_date:  rec.audit_date,
+        date:        rec.audit_date,
         warehouse:   rec.warehouse,
         item_name:   rec.item_name,
         expiry:      rec.expiry,
-        sys_qty:     rec.sys_qty,
+        system_qty:  rec.sys_qty,
         actual_qty:  rec.actual_qty,
-        diff:        diff,
+        diff_qty:    diff,
         manager:     userName,
         memo:        '전체 실사 모드',
         created_at:  Date.now()
