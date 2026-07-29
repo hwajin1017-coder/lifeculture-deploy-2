@@ -1747,60 +1747,61 @@ function lg2RenderFullAuditGrid() {
 
 // ── 품목 카드 생성 ────────────────────────────────────────────────
 function lg2CreateFullAuditCard(itemName, fifoRows, wh) {
-  var safeId = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
-  var totalStock = fifoRows.reduce(function(s, r) { return s + r.stock; }, 0);
-  var hasStock = totalStock > 0;
+  var safeId  = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
   var whLabel = wh === 'W' ? '🏭 일반창고' : '❄️ 저온창고';
-  var borderColor = hasStock ? '#8e44ad' : '#ddd';
-  var bgColor     = hasStock ? '#fdf5ff' : '#f8f9fa';
 
   var card = document.createElement('div');
   card.className = 'lg2-full-audit-card';
   card.dataset.itemName = itemName;
-  card.dataset.hasStock = hasStock ? '1' : '0';
-  card.style.cssText = 'border:1.5px solid ' + borderColor + ';border-radius:10px;padding:12px 14px;background:' + bgColor + ';transition:all 0.15s';
+  card.style.cssText = 'border:1.5px solid #8e44ad;border-radius:10px;padding:12px 14px;background:#fdf5ff;transition:all 0.15s';
 
-  // 헤더
+  // 헤더 (전산재고 표시 제거)
   var headerHtml =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
       '<div>' +
-        '<div style="font-size:13px;font-weight:700;color:' + (hasStock ? '#6c3483' : '#aaa') + '">' + lg2esc(itemName) + '</div>' +
-        '<div style="font-size:11px;color:#888;margin-top:2px">' + whLabel + ' · 전산재고 <strong>' + totalStock.toLocaleString() + '</strong> ea</div>' +
+        '<div style="font-size:13px;font-weight:700;color:#6c3483">' + lg2esc(itemName) + '</div>' +
+        '<div style="font-size:11px;color:#888;margin-top:2px">' + whLabel + '</div>' +
       '</div>' +
     '</div>';
 
-  // 소비기한별 행
+  // 소비기한별 행 (전산재고·차이 컬럼 제거, 실사수량만)
   var rowsHtml = '';
   if (fifoRows.length === 0) {
-    rowsHtml = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px">입고 내역 없음</div>';
+    // 입고 내역 없어도 소비기한 미지정 행 하나 제공
+    rowsHtml =
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee;flex-wrap:wrap">' +
+        '<div style="flex:1;min-width:120px">' +
+          '<div style="font-size:11px;color:#888">소비기한</div>' +
+          '<div style="font-size:12px;font-weight:700;color:#555">소비기한 미지정</div>' +
+        '</div>' +
+        '<div style="min-width:110px">' +
+          '<div style="font-size:11px;color:#888;margin-bottom:3px">실사수량(ea)</div>' +
+          '<input type="number" id="lg2fa_' + safeId + '_0" min="0" placeholder="0" ' +
+            'data-item="' + lg2esc(itemName) + '" ' +
+            'data-expiry="" ' +
+            'data-wh="' + wh + '" ' +
+            'data-sys="0" ' +
+            'style="width:90px;padding:6px 8px;border:1.5px solid #8e44ad;border-radius:6px;font-size:14px;text-align:right;font-weight:700" />' +
+        '</div>' +
+      '</div>';
   } else {
     fifoRows.forEach(function(f, idx) {
       var rowSafeId = safeId + '_' + idx;
-      var expLabel = f.expiry ? f.expiry : '소비기한 미지정';
-      var stockColor = f.stock < 0 ? '#e74c3c' : (f.stock === 0 ? '#aaa' : '#27ae60');
+      var expLabel  = f.expiry ? f.expiry : '소비기한 미지정';
       rowsHtml +=
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee;flex-wrap:wrap">' +
           '<div style="flex:1;min-width:120px">' +
             '<div style="font-size:11px;color:#888">소비기한</div>' +
             '<div style="font-size:12px;font-weight:700;color:#555">' + lg2esc(expLabel) + '</div>' +
           '</div>' +
-          '<div style="text-align:right;min-width:70px">' +
-            '<div style="font-size:11px;color:#888">전산재고</div>' +
-            '<div style="font-size:13px;font-weight:700;color:' + stockColor + '">' + f.stock.toLocaleString() + '</div>' +
-          '</div>' +
-          '<div style="min-width:90px">' +
+          '<div style="min-width:110px">' +
             '<div style="font-size:11px;color:#888;margin-bottom:3px">실사수량(ea)</div>' +
-            '<input type="number" id="lg2fa_' + rowSafeId + '" min="0" placeholder="입력" ' +
+            '<input type="number" id="lg2fa_' + rowSafeId + '" min="0" placeholder="0" ' +
               'data-item="' + lg2esc(itemName) + '" ' +
               'data-expiry="' + lg2esc(f.expiry || '') + '" ' +
               'data-wh="' + wh + '" ' +
-              'data-sys="' + f.stock + '" ' +
-              'oninput="lg2FullAuditCalcDiff(this)" ' +
-              'style="width:80px;padding:5px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;text-align:right" />' +
-          '</div>' +
-          '<div style="min-width:70px;text-align:right">' +
-            '<div style="font-size:11px;color:#888;margin-bottom:3px">차이</div>' +
-            '<div id="lg2fa_diff_' + rowSafeId + '" style="font-size:13px;font-weight:700;color:#aaa">-</div>' +
+              'data-sys="0" ' +
+              'style="width:90px;padding:6px 8px;border:1.5px solid #8e44ad;border-radius:6px;font-size:14px;text-align:right;font-weight:700" />' +
           '</div>' +
         '</div>';
     });
@@ -2006,13 +2007,14 @@ async function lg2SaveFullAudit() {
   var records = [];
   inputs.forEach(function(inp) {
     if (inp.value === '') return;
+    var actualQty = Number(inp.value) || 0;
     records.push({
       item_name:  inp.dataset.item,
       warehouse:  inp.dataset.wh,
       expiry:     inp.dataset.expiry || '',
-      sys_qty:    Number(inp.dataset.sys) || 0,
-      actual_qty: Number(inp.value) || 0,
-      diff:       (Number(inp.value) || 0) - (Number(inp.dataset.sys) || 0),
+      sys_qty:    0,
+      actual_qty: actualQty,
+      diff:       actualQty,  // 전산재고 없이 실사수량 그대로
       audit_date: date
     });
   });
