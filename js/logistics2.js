@@ -513,7 +513,7 @@ function lg2RenderAudit() {
   var tbody = document.getElementById('lg2AuditBody');
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">실사 내역이 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#aaa">실사 내역이 없습니다.</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(function(r) {
@@ -525,7 +525,10 @@ function lg2RenderAudit() {
     var wBadge = r.warehouse === 'W'
       ? '<span class="badge-W">🏭 일반(W)</span>'
       : '<span class="badge-C">❄️ 저온(C)</span>';
-    return '<tr class="' + rowClass + '">' +
+    return '<tr class="' + rowClass + '" data-id="' + lg2esc(r.id) + '">' +
+      '<td style="text-align:center">' +
+        '<input type="checkbox" class="lg2-audit-chk" data-id="' + lg2esc(r.id) + '" onchange="lg2AuditUpdateSelectedCount()" style="cursor:pointer;width:15px;height:15px" />' +
+      '</td>' +
       '<td>' + lg2esc(r.date || '-') + '</td>' +
       '<td><strong>' + lg2esc(r.item_name || '-') + '</strong></td>' +
       '<td>' + wBadge + '</td>' +
@@ -541,6 +544,8 @@ function lg2RenderAudit() {
       '</td>' +
       '</tr>';
   }).join('');
+  // 선택 카운트 리셋
+  lg2AuditUpdateSelectedCount();
 }
 
 // ══════════════════════════════════════════════════
@@ -886,6 +891,47 @@ async function lg2DeleteAudit(id) {
   try {
     await apiDelete('lg2_audit', id);
     showToast('삭제되었습니다.', 'success');
+    await lg2LoadAll();
+  } catch(e) {
+    showToast('삭제 중 오류가 발생했습니다.', 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════
+// 재고실사 체크박스 선택 삭제
+// ══════════════════════════════════════════════════
+function lg2AuditUpdateSelectedCount() {
+  var chks = document.querySelectorAll('.lg2-audit-chk:checked');
+  var cnt  = chks.length;
+  var btn  = document.getElementById('lg2AuditDeleteSelectedBtn');
+  var cntEl = document.getElementById('lg2AuditSelectedCount');
+  if (btn)  btn.style.display  = cnt > 0 ? '' : 'none';
+  if (cntEl) cntEl.textContent = cnt;
+  // 전체선택 체크박스 상태 동기화
+  var allChks = document.querySelectorAll('.lg2-audit-chk');
+  var allChk  = document.getElementById('lg2AuditSelectAll');
+  if (allChk && allChks.length > 0) {
+    allChk.checked       = cnt === allChks.length;
+    allChk.indeterminate = cnt > 0 && cnt < allChks.length;
+  }
+}
+
+function lg2AuditToggleAll(masterChk) {
+  var chks = document.querySelectorAll('.lg2-audit-chk');
+  chks.forEach(function(c) { c.checked = masterChk.checked; });
+  lg2AuditUpdateSelectedCount();
+}
+
+async function lg2DeleteSelectedAudit() {
+  var chks = document.querySelectorAll('.lg2-audit-chk:checked');
+  if (!chks.length) { showToast('선택된 내역이 없습니다.', 'warning'); return; }
+  if (!confirm(chks.length + '건의 실사 내역을 삭제하시겠습니까?')) return;
+  try {
+    var ids = Array.from(chks).map(function(c) { return c.dataset.id; });
+    for (var i = 0; i < ids.length; i++) {
+      await apiDelete('lg2_audit', ids[i]);
+    }
+    showToast(ids.length + '건 삭제되었습니다.', 'success');
     await lg2LoadAll();
   } catch(e) {
     showToast('삭제 중 오류가 발생했습니다.', 'error');
