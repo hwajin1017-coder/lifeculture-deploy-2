@@ -1624,10 +1624,12 @@ async function lg2GrantFullAudit() {
   var overlay     = document.getElementById('lg2FullAuditLockOverlay');
   var grid        = document.getElementById('lg2FullAuditGrid');
   var dateEl      = document.getElementById('lg2FullAuditDate');
+  var addBtn = document.getElementById('lg2FullAuditAddBtn');
   if (statusEl)   statusEl.innerHTML = '<i class="fas fa-unlock" style="color:#2ecc71"></i> <span style="color:#2ecc71">허가됨 — 실사 모드 활성</span>';
   if (approveBtn) approveBtn.style.display = 'none';
   if (saveBtn)    saveBtn.style.display = '';
   if (lockBtn)    lockBtn.style.display = '';
+  if (addBtn)     addBtn.style.display = '';
   if (overlay)    overlay.style.display = 'none';
   if (grid)       grid.style.display = '';
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
@@ -1657,10 +1659,12 @@ function lg2LockFullAudit() {
   var lockBtn    = document.getElementById('lg2FullAuditLockBtn');
   var overlay    = document.getElementById('lg2FullAuditLockOverlay');
   var grid       = document.getElementById('lg2FullAuditGrid');
+  var addBtn2 = document.getElementById('lg2FullAuditAddBtn');
   if (statusEl)   statusEl.innerHTML = '<i class="fas fa-lock"></i> 관리자 허가 필요';
   if (approveBtn) approveBtn.style.display = '';
   if (saveBtn)    saveBtn.style.display = 'none';
   if (lockBtn)    lockBtn.style.display = 'none';
+  if (addBtn2)    addBtn2.style.display = 'none';
   if (overlay)    overlay.style.display = '';
   if (grid)       grid.style.display = 'none';
   showToast('실사 모드가 잠금되었습니다.', 'info');
@@ -1821,6 +1825,145 @@ function lg2FullAuditCalcDiff(input) {
   var card = input.closest('.lg2-full-audit-card');
   if (card && diff !== 0) { card.style.borderColor = '#e67e22'; card.style.background = '#fffbf0'; }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// 전체 실사 모드 — 제품 추가 모달
+// ══════════════════════════════════════════════════════════════════
+function lg2OpenFullAuditAddModal() {
+  if (!_lg2FullAuditUnlocked) { showToast('관리자 허가가 필요합니다.', 'warning'); return; }
+  var modal = document.getElementById('lg2FullAuditAddModal');
+  if (!modal) return;
+  // 기본값 설정
+  var today = new Date().toISOString().split('T')[0];
+  var dateEl = document.getElementById('lg2FaAddDate');
+  if (dateEl) dateEl.value = today;
+  var itemEl = document.getElementById('lg2FaAddItem');
+  if (itemEl) itemEl.value = '';
+  var expiryEl = document.getElementById('lg2FaAddExpiry');
+  if (expiryEl) expiryEl.value = '';
+  var qtyEl = document.getElementById('lg2FaAddQty');
+  if (qtyEl) qtyEl.value = '';
+  var errEl = document.getElementById('lg2FaAddError');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  // 창고 기본값 = 현재 실사 창고
+  lg2FaAddSelectWh(_lg2FullAuditWarehouse || 'W');
+  modal.style.display = 'flex';
+  setTimeout(function() { if (itemEl) itemEl.focus(); }, 100);
+}
+
+function lg2CloseFullAuditAddModal() {
+  var modal = document.getElementById('lg2FullAuditAddModal');
+  if (modal) modal.style.display = 'none';
+  var list = document.getElementById('lg2FaAddItemList');
+  if (list) list.style.display = 'none';
+}
+
+function lg2FaAddSelectWh(wh) {
+  var whVal = document.getElementById('lg2FaAddWhVal');
+  var btnW  = document.getElementById('lg2FaAddWh_W');
+  var btnC  = document.getElementById('lg2FaAddWh_C');
+  if (whVal) whVal.value = wh;
+  if (btnW) {
+    if (wh === 'W') { btnW.style.background = '#8e44ad'; btnW.style.color = '#fff'; btnW.style.borderColor = '#8e44ad'; }
+    else            { btnW.style.background = '#fff';    btnW.style.color = '#555'; btnW.style.borderColor = '#ddd'; }
+  }
+  if (btnC) {
+    if (wh === 'C') { btnC.style.background = '#8e44ad'; btnC.style.color = '#fff'; btnC.style.borderColor = '#8e44ad'; }
+    else            { btnC.style.background = '#fff';    btnC.style.color = '#555'; btnC.style.borderColor = '#ddd'; }
+  }
+}
+
+function lg2FaAddAutocomplete() {
+  var input = document.getElementById('lg2FaAddItem');
+  var list  = document.getElementById('lg2FaAddItemList');
+  if (!input || !list) return;
+  var q = input.value.trim().toLowerCase();
+  list.innerHTML = '';
+  if (!q || !_lg2ProductCache) { list.style.display = 'none'; return; }
+  var matches = _lg2ProductCache.filter(function(p) {
+    return (p.product_name || '').toLowerCase().includes(q);
+  }).slice(0, 15);
+  if (!matches.length) { list.style.display = 'none'; return; }
+  matches.forEach(function(p) {
+    var div = document.createElement('div');
+    div.textContent = p.product_name;
+    div.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:13px';
+    div.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      input.value = p.product_name;
+      list.style.display = 'none';
+    });
+    div.addEventListener('mouseover', function() { div.style.background = '#f0f4ff'; });
+    div.addEventListener('mouseout',  function() { div.style.background = ''; });
+    list.appendChild(div);
+  });
+  list.style.display = 'block';
+}
+
+async function lg2ConfirmFullAuditAdd() {
+  var wh     = (document.getElementById('lg2FaAddWhVal')  || {}).value || 'W';
+  var item   = ((document.getElementById('lg2FaAddItem')  || {}).value || '').trim();
+  var date   = (document.getElementById('lg2FaAddDate')   || {}).value || '';
+  var expiry = (document.getElementById('lg2FaAddExpiry') || {}).value || '';
+  var qty    = parseInt((document.getElementById('lg2FaAddQty') || {}).value) || 0;
+  var errEl  = document.getElementById('lg2FaAddError');
+
+  // 유효성 검사
+  var errs = [];
+  if (!item)  errs.push('품목명을 입력하세요.');
+  if (!date)  errs.push('입고일을 입력하세요.');
+  if (qty < 0) errs.push('실사수량은 0 이상이어야 합니다.');
+  if (errs.length) {
+    if (errEl) { errEl.textContent = errs.join(' '); errEl.style.display = 'block'; }
+    return;
+  }
+  if (errEl) errEl.style.display = 'none';
+
+  // 1) 입고 레코드 저장 (입고관리에 반영)
+  try {
+    var user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+    var userName = user ? (user.name || user.email) : '관리자';
+    await apiPost('lg2_inbound', {
+      date:       date,
+      warehouse:  wh,
+      item_name:  item,
+      qty_ea:     qty,
+      expiry:     expiry,
+      supplier:   '실사 추가',
+      manager:    userName,
+      memo:       '전체 실사 모드 제품 추가',
+      created_at: Date.now()
+    });
+    // 캐시 갱신
+    var fresh = await apiGetAll('lg2_inbound');
+    _lg2InboundData = fresh || [];
+  } catch(e) {
+    if (errEl) { errEl.textContent = '저장 오류: ' + e.message; errEl.style.display = 'block'; }
+    return;
+  }
+
+  showToast('제품이 추가되었습니다: ' + item + ' (' + qty + ' ea)', 'success');
+  lg2CloseFullAuditAddModal();
+
+  // 2) 실사 그리드 재렌더링 (추가된 품목 카드 반영)
+  lg2RenderFullAuditGrid();
+
+  // 3) 전체현황도 갱신
+  lg2RenderOverview();
+}
+
+// 모달 외부 클릭 시 닫기
+document.addEventListener('click', function(e) {
+  var modal = document.getElementById('lg2FullAuditAddModal');
+  if (modal && modal.style.display === 'flex' && e.target === modal) {
+    lg2CloseFullAuditAddModal();
+  }
+  var list = document.getElementById('lg2FaAddItemList');
+  var input = document.getElementById('lg2FaAddItem');
+  if (list && input && !list.contains(e.target) && e.target !== input) {
+    list.style.display = 'none';
+  }
+});
 
 // ── 필터링 ────────────────────────────────────────────────────────
 function lg2FilterFullAuditGrid() {
