@@ -1952,7 +1952,6 @@ async function lg2SaveFullAudit() {
     lg2RenderInbound();
     lg2RenderOutbound();
     lg2RenderAudit();
-    lg2UpdateKpi();
     lg2RenderFullAuditGrid();
 
   } catch(e) {
