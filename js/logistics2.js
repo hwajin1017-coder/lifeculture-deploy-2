@@ -941,6 +941,9 @@ async function lg2DeleteSelectedAudit() {
 // ══════════════════════════════════════════════════
 // 바코드 스캔
 // ══════════════════════════════════════════════════
+var _lg2ScanMethod = 'camera'; // 'camera' | 'pda' | 'manual'
+var _lg2PdaScanTimer = null;
+
 function lg2OpenScanModal(mode) {
   _lg2ScanMode = mode;
   _lg2ScanBarcode = '';
@@ -948,16 +951,76 @@ function lg2OpenScanModal(mode) {
   var titleEl = document.getElementById('lg2ScanModalTitle');
   var resultEl = document.getElementById('lg2ScanResult');
   var qtyWrap = document.getElementById('lg2ScanQtyWrap');
-  var scanInput = document.getElementById('lg2ScanInput');
   if (!modal) return;
   if (titleEl) titleEl.innerHTML = mode === 'inbound'
     ? '<i class="fas fa-barcode"></i> 바코드 스캔 — 입고'
     : '<i class="fas fa-barcode"></i> 바코드 스캔 — 출고';
   if (resultEl) resultEl.textContent = '';
   if (qtyWrap) qtyWrap.style.display = 'none';
-  if (scanInput) scanInput.value = '';
+  // 입력칸 전체 리셋
+  ['lg2ScanInput','lg2ScanInputPda'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
   modal.classList.add('show');
-  lg2StartCamera();
+  // localStorage에서 마지막 선택 방식 복원
+  try {
+    var saved = localStorage.getItem('lg2ScanMethod');
+    if (saved && ['camera','pda','manual'].indexOf(saved) !== -1) _lg2ScanMethod = saved;
+  } catch(e) {}
+  lg2SetScanMethod(_lg2ScanMethod);
+}
+
+function lg2SetScanMethod(method) {
+  _lg2ScanMethod = method;
+  // 스캔 중지
+  lg2StopCamera();
+  // 탭 스타일
+  ['camera','pda','manual'].forEach(function(m) {
+    var btn  = document.getElementById('lg2ScanTab_' + m);
+    var pane = document.getElementById('lg2ScanPane_' + m);
+    if (btn) {
+      btn.style.background = m === method ? '#2563eb' : 'transparent';
+      btn.style.color      = m === method ? '#fff'    : '#555';
+    }
+    if (pane) pane.style.display = m === method ? '' : 'none';
+  });
+  // 선택한 방식 시작
+  if (method === 'camera') {
+    lg2StartCamera();
+  } else if (method === 'pda') {
+    setTimeout(function() {
+      var el = document.getElementById('lg2ScanInputPda');
+      if (el) el.focus();
+    }, 100);
+  } else {
+    setTimeout(function() {
+      var el = document.getElementById('lg2ScanInput');
+      if (el) el.focus();
+    }, 100);
+  }
+  // 선택 방식 localStorage 저장
+  try { localStorage.setItem('lg2ScanMethod', method); } catch(e) {}
+}
+
+// PDA/스캐너: Enter 키로 처리
+function lg2ProcessScanPda() {
+  var input = document.getElementById('lg2ScanInputPda');
+  if (!input || !input.value.trim()) return;
+  var val = input.value.trim();
+  input.value = '';
+  lg2HandleScannedBarcode(val);
+}
+
+// PDA/스캐너: 빠른 입력 자동 감지 (스캐너는 보통 100ms 이내에 전체 바코드를 입력)
+function lg2AutoDetectPdaScan(input) {
+  if (_lg2PdaScanTimer) clearTimeout(_lg2PdaScanTimer);
+  _lg2PdaScanTimer = setTimeout(function() {
+    var val = input.value.trim();
+    if (val.length >= 4) { // 바코드 최소 길이 4자
+      input.value = '';
+      lg2HandleScannedBarcode(val);
+    }
+  }, 150); // 150ms 후 자동 처리
 }
 
 function lg2CloseScanModal() {

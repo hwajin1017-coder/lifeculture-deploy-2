@@ -596,20 +596,63 @@
   <!-- 바코드 스캔 모달 -->
   <!-- ══════════════════════════════════════════ -->
   <div class="lg2-modal-overlay" id="lg2ScanModal">
-    <div class="lg2-modal" style="max-width:400px">
+    <div class="lg2-modal" style="max-width:440px">
       <div class="lg2-modal-header">
         <h3 id="lg2ScanModalTitle"><i class="fas fa-barcode"></i> 바코드 스캔</h3>
         <button onclick="lg2CloseScanModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999">&times;</button>
       </div>
       <div class="lg2-modal-body">
-        <p style="font-size:12px;color:#888;margin-bottom:12px">카메라로 바코드를 스캔하거나, 바코드 번호를 직접 입력하세요.</p>
-        <video id="lg2ScanVideo" autoplay playsinline style="width:100%;border-radius:8px;background:#000;min-height:200px"></video>
-        <canvas id="lg2ScanCanvas" style="display:none"></canvas>
-        <div style="margin-top:12px;display:flex;gap:8px">
-          <input type="text" id="lg2ScanInput" placeholder="바코드 번호 직접 입력..." style="flex:1;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')lg2ProcessScan()" />
-          <button class="btn btn-primary" onclick="lg2ProcessScan()">확인</button>
+        <!-- 스캔 방식 선택 탭 -->
+        <div style="display:flex;gap:4px;margin-bottom:14px;background:#f0f2f5;border-radius:10px;padding:4px">
+          <button id="lg2ScanTab_camera" onclick="lg2SetScanMethod('camera')" style="flex:1;padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:#2563eb;color:#fff;transition:all .2s">
+            <i class="fas fa-camera"></i><br>카메라
+          </button>
+          <button id="lg2ScanTab_pda" onclick="lg2SetScanMethod('pda')" style="flex:1;padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:#555;transition:all .2s">
+            <i class="fas fa-mobile-alt"></i><br>PDA/스캐너
+          </button>
+          <button id="lg2ScanTab_manual" onclick="lg2SetScanMethod('manual')" style="flex:1;padding:7px 4px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:#555;transition:all .2s">
+            <i class="fas fa-keyboard"></i><br>직접 입력
+          </button>
         </div>
-        <div id="lg2ScanResult" style="margin-top:10px;font-size:13px;color:#27ae60;font-weight:700;min-height:20px"></div>
+
+        <!-- 카메라 모드 -->
+        <div id="lg2ScanPane_camera">
+          <p style="font-size:12px;color:#888;margin-bottom:8px">현재 기기의 카메라로 바코드를 스캔합니다.</p>
+          <video id="lg2ScanVideo" autoplay playsinline style="width:100%;border-radius:8px;background:#000;min-height:180px"></video>
+          <canvas id="lg2ScanCanvas" style="display:none"></canvas>
+        </div>
+
+        <!-- PDA/외부 스캐너 모드 -->
+        <div id="lg2ScanPane_pda" style="display:none">
+          <div style="background:#fff8e1;border:1.5px solid #f59e0b;border-radius:10px;padding:14px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700;color:#b45309;margin-bottom:6px"><i class="fas fa-info-circle"></i> PDA / USB·블루투스 스캐너 사용법</div>
+            <ol style="font-size:12px;color:#78350f;margin:0;padding-left:18px;line-height:1.8">
+              <li>아래 입력칸을 클릭하여 포커스를 맞춰주세요.</li>
+              <li>PDA 또는 스캐너로 바코드를 스캔하세요.</li>
+              <li>스캔 시 자동으로 입력되며 Enter로 처리됩니다.</li>
+            </ol>
+          </div>
+          <div style="position:relative">
+            <input type="text" id="lg2ScanInputPda"
+              placeholder="스캐너를 이곳에 스캔하세요..."
+              style="width:100%;padding:14px 16px;border:2px solid #2563eb;border-radius:10px;font-size:15px;box-sizing:border-box;outline:none"
+              onkeydown="if(event.key==='Enter')lg2ProcessScanPda()"
+              oninput="lg2AutoDetectPdaScan(this)" />
+            <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:18px">📷</span>
+          </div>
+          <p style="font-size:11px;color:#aaa;margin-top:6px;text-align:center">USB HID / 블루투스 바코드 스캐너 자동 인식</p>
+        </div>
+
+        <!-- 직접 입력 모드 -->
+        <div id="lg2ScanPane_manual" style="display:none">
+          <p style="font-size:12px;color:#888;margin-bottom:8px">바코드 번호를 직접 입력하세요.</p>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="lg2ScanInput" placeholder="바코드 번호 입력..." style="flex:1;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px" onkeydown="if(event.key==='Enter')lg2ProcessScan()" />
+            <button class="btn btn-primary" onclick="lg2ProcessScan()">확인</button>
+          </div>
+        </div>
+
+        <div id="lg2ScanResult" style="margin-top:12px;font-size:13px;color:#27ae60;font-weight:700;min-height:20px"></div>
         <div id="lg2ScanQtyWrap" style="display:none;margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px">
           <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="lg2ScanProductName"></div>
           <div style="display:flex;gap:8px;align-items:center">
