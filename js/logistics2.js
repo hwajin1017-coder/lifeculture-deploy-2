@@ -2050,8 +2050,8 @@ async function lg2SaveFullAudit() {
   var inputs  = document.querySelectorAll('#lg2FullAuditGridInner input[type="number"][data-item]');
   var records = [];
   inputs.forEach(function(inp) {
-    if (inp.value === '') return;
-    var actualQty = Number(inp.value) || 0;
+    // 빈칸도 0으로 처리 (실사 대상 품목은 반드시 저장)
+    var actualQty = inp.value === '' ? 0 : (Number(inp.value) || 0);
     records.push({
       item_name:  inp.dataset.item,
       warehouse:  inp.dataset.wh,
@@ -2063,7 +2063,7 @@ async function lg2SaveFullAudit() {
     });
   });
 
-  if (!records.length) { showToast('입력된 실사 수량이 없습니다.', 'warning'); return; }
+  if (!records.length) { showToast('실사 대상 품목이 없습니다. 먼저 실사 모드를 활성화하세요.', 'warning'); return; }
   if (!confirm(records.length + '건의 실사 결과를 저장하시겠습니까?\n실사 수량이 재고 기준점이 됩니다.')) return;
 
   showToast('실사 저장 중...', 'info');
