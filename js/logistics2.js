@@ -1085,9 +1085,13 @@ function lg2HandleScannedBarcode(barcode) {
   lg2StopCamera();
   _lg2ScanBarcode = barcode;
   var product = lg2GetProductByBarcode(barcode);
-  var resultEl = document.getElementById('lg2ScanResult');
-  var qtyWrap  = document.getElementById('lg2ScanQtyWrap');
-  var nameEl   = document.getElementById('lg2ScanProductName');
+  var resultEl    = document.getElementById('lg2ScanResult');
+  var inboundForm = document.getElementById('lg2ScanInboundForm');
+  var outboundForm= document.getElementById('lg2ScanQtyWrap');
+
+  // 두 폼 모두 숨기기
+  if (inboundForm)  inboundForm.style.display  = 'none';
+  if (outboundForm) outboundForm.style.display = 'none';
 
   if (!product) {
     if (resultEl) resultEl.innerHTML = '<span style="color:#e74c3c">바코드 [' + lg2esc(barcode) + ']에 해당하는 제품을 찾을 수 없습니다.</span>';
@@ -1096,31 +1100,99 @@ function lg2HandleScannedBarcode(barcode) {
 
   if (resultEl) resultEl.innerHTML = '<span style="color:#27ae60">✓ ' + lg2esc(product.product_name) + ' 인식됨</span>';
 
+  var today = new Date().toISOString().split('T')[0];
+
   if (_lg2ScanMode === 'inbound') {
-    // 입고 모달 열기
-    lg2CloseScanModal();
-    lg2OpenInboundModal();
-    setTimeout(function() {
-      var el = document.getElementById('lg2InItem');
-      if (el) { el.value = product.product_name; lg2UpdateQtyPreview('lg2InItem','lg2InQty','lg2InQtyPreview'); }
-    }, 100);
+    // 입고 빠른 등록 폼 표시
+    var nameEl = document.getElementById('lg2ScanInboundProductName');
+    if (nameEl) nameEl.textContent = product.product_name;
+    var dateEl = document.getElementById('lg2ScanInDate');
+    if (dateEl) dateEl.value = today;
+    var qtyEl = document.getElementById('lg2ScanInQty');
+    if (qtyEl) { qtyEl.value = ''; setTimeout(function(){ qtyEl.focus(); }, 50); }
+    var expiryEl = document.getElementById('lg2ScanInExpiry');
+    if (expiryEl) expiryEl.value = '';
+    var supplierEl = document.getElementById('lg2ScanInSupplier');
+    if (supplierEl) supplierEl.value = '';
+    var managerEl = document.getElementById('lg2ScanInManager');
+    if (managerEl) managerEl.value = '';
+    if (inboundForm) inboundForm.style.display = 'block';
   } else {
-    // 출고: 수량 입력 UI 표시
-    if (nameEl) nameEl.textContent = product.product_name + ' — 현재고: ' + lg2GetTotalStock(product.product_name, '') + ' ea';
-    if (qtyWrap) qtyWrap.style.display = 'block';
-    var qtyEl = document.getElementById('lg2ScanQty');
-    if (qtyEl) { qtyEl.value = ''; qtyEl.focus(); }
+    // 출고 빠른 등록 폼 표시
+    var nameEl2 = document.getElementById('lg2ScanProductName');
+    var totalStock = lg2GetTotalStock(product.product_name, '');
+    if (nameEl2) nameEl2.textContent = product.product_name + ' — 현재고: ' + totalStock.toLocaleString() + ' ea';
+    var outDateEl = document.getElementById('lg2ScanOutDate');
+    if (outDateEl) outDateEl.value = today;
+    var outQtyEl = document.getElementById('lg2ScanQty');
+    if (outQtyEl) { outQtyEl.value = ''; setTimeout(function(){ outQtyEl.focus(); }, 50); }
+    var outDestEl = document.getElementById('lg2ScanOutDest');
+    if (outDestEl) outDestEl.value = '';
+    var outMgrEl = document.getElementById('lg2ScanOutManager');
+    if (outMgrEl) outMgrEl.value = '';
+    if (outboundForm) outboundForm.style.display = 'block';
+  }
+}
+
+function lg2CancelScanForm() {
+  var inboundForm  = document.getElementById('lg2ScanInboundForm');
+  var outboundForm = document.getElementById('lg2ScanQtyWrap');
+  var resultEl     = document.getElementById('lg2ScanResult');
+  if (inboundForm)  inboundForm.style.display  = 'none';
+  if (outboundForm) outboundForm.style.display = 'none';
+  if (resultEl)     resultEl.innerHTML = '';
+  _lg2ScanBarcode = '';
+}
+
+async function lg2ConfirmScanIn() {
+  var product = lg2GetProductByBarcode(_lg2ScanBarcode);
+  if (!product) { showToast('제품 정보를 찾을 수 없습니다.', 'error'); return; }
+
+  var date     = (document.getElementById('lg2ScanInDate')     || {}).value || '';
+  var qty      = parseInt((document.getElementById('lg2ScanInQty') || {}).value) || 0;
+  var expiry   = (document.getElementById('lg2ScanInExpiry')   || {}).value || '';
+  var wh       = (document.getElementById('lg2ScanInWarehouse') || {}).value || 'W';
+  var supplier = (document.getElementById('lg2ScanInSupplier') || {}).value || '';
+  var manager  = (document.getElementById('lg2ScanInManager')  || {}).value || '';
+
+  if (!date)      { showToast('입고일을 입력하세요.', 'error'); return; }
+  if (qty <= 0)   { showToast('수량을 1 이상 입력하세요.', 'error'); return; }
+
+  var bd = lg2CalcBreakdown(qty, product.product_name);
+  var data = {
+    date:      date,
+    warehouse: wh,
+    item_name: product.product_name,
+    qty_ea:    qty,
+    qty_box:   bd.box,
+    qty_pt:    bd.pt,
+    expiry:    expiry,
+    supplier:  supplier,
+    manager:   manager,
+    memo:      '바코드 스캔 입고'
+  };
+
+  try {
+    await apiPost('lg2_inbound', data);
+    showToast(product.product_name + ' ' + qty + ' ea 입고 완료!', 'success');
+    lg2CloseScanModal();
+    await lg2LoadAll();
+  } catch(e) {
+    showToast('입고 저장 중 오류가 발생했습니다.', 'error');
   }
 }
 
 async function lg2ConfirmScanOut() {
   var product = lg2GetProductByBarcode(_lg2ScanBarcode);
   if (!product) { showToast('제품 정보를 찾을 수 없습니다.', 'error'); return; }
-  var qtyEl = document.getElementById('lg2ScanQty');
-  var qty = parseInt(qtyEl ? qtyEl.value : 0);
-  if (!qty || qty <= 0) { showToast('출고 수량을 입력하세요.', 'error'); return; }
 
-  var today = new Date().toISOString().split('T')[0];
+  var date    = (document.getElementById('lg2ScanOutDate')    || {}).value || new Date().toISOString().split('T')[0];
+  var qty     = parseInt((document.getElementById('lg2ScanQty') || {}).value) || 0;
+  var dest    = (document.getElementById('lg2ScanOutDest')    || {}).value || '';
+  var manager = (document.getElementById('lg2ScanOutManager') || {}).value || '';
+
+  if (qty <= 0) { showToast('출고 수량을 입력하세요.', 'error'); return; }
+
   // 창고 자동 결정: 재고가 있는 창고 우선
   var stockW = lg2GetTotalStock(product.product_name, 'W');
   var stockC = lg2GetTotalStock(product.product_name, 'C');
@@ -1133,15 +1205,15 @@ async function lg2ConfirmScanOut() {
 
   var bd = lg2CalcBreakdown(qty, product.product_name);
   var data = {
-    date: today,
-    warehouse: wh,
-    item_name: product.product_name,
-    qty_ea: qty,
-    qty_box: bd.box,
-    qty_pt: bd.pt,
-    destination: '',
-    manager: '',
-    memo: '바코드 스캔 출고'
+    date:        date,
+    warehouse:   wh,
+    item_name:   product.product_name,
+    qty_ea:      qty,
+    qty_box:     bd.box,
+    qty_pt:      bd.pt,
+    destination: dest,
+    manager:     manager,
+    memo:        '바코드 스캔 출고'
   };
 
   try {

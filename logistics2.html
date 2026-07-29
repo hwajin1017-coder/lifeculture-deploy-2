@@ -652,12 +652,83 @@
           </div>
         </div>
 
+        <!-- 스캔 결과 영역 -->
         <div id="lg2ScanResult" style="margin-top:12px;font-size:13px;color:#27ae60;font-weight:700;min-height:20px"></div>
-        <div id="lg2ScanQtyWrap" style="display:none;margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px">
-          <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="lg2ScanProductName"></div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="number" id="lg2ScanQty" min="1" placeholder="출고 수량(ea)" style="flex:1;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px" />
-            <button class="btn btn-primary" onclick="lg2ConfirmScanOut()">출고</button>
+
+        <!-- 입고 빠른 등록 폼 (스캔 후 자동 표시) -->
+        <div id="lg2ScanInboundForm" style="display:none;margin-top:12px;padding:14px;background:#f0f7ff;border:1.5px solid #2563eb;border-radius:10px">
+          <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:10px"><i class="fas fa-sign-in-alt"></i> 입고 정보 입력</div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px;padding:6px 10px;background:#dbeafe;border-radius:6px" id="lg2ScanInboundProductName"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">입고일 *</label>
+              <input type="date" id="lg2ScanInDate" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">소비기한</label>
+              <input type="date" id="lg2ScanInExpiry" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">수량(ea) *</label>
+              <input type="number" id="lg2ScanInQty" min="1" placeholder="수량" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">상온조건</label>
+              <select id="lg2ScanInWarehouse" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box">
+                <option value="W">일반창고(W)</option>
+                <option value="C">저온창고(C)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">공급업체</label>
+              <input type="text" id="lg2ScanInSupplier" placeholder="공급업체" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">담당자</label>
+              <input type="text" id="lg2ScanInManager" placeholder="담당자" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="lg2ConfirmScanIn()" style="flex:1;font-size:13px;padding:9px">
+              <i class="fas fa-check"></i> 입고 등록
+            </button>
+            <button onclick="lg2CancelScanForm()" style="padding:9px 14px;border:1.5px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:12px">취소</button>
+          </div>
+        </div>
+
+        <!-- 출고 빠른 등록 폼 (스캔 후 자동 표시) -->
+        <div id="lg2ScanQtyWrap" style="display:none;margin-top:12px;padding:14px;background:#fff5f5;border:1.5px solid #e74c3c;border-radius:10px">
+          <div style="font-size:12px;font-weight:700;color:#c0392b;margin-bottom:10px"><i class="fas fa-sign-out-alt"></i> 출고 정보 입력</div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px;padding:6px 10px;background:#fee2e2;border-radius:6px" id="lg2ScanProductName"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">출고일 *</label>
+              <input type="date" id="lg2ScanOutDate" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">수량(ea) *</label>
+              <input type="number" id="lg2ScanQty" min="1" placeholder="수량" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">출고처</label>
+              <input type="text" id="lg2ScanOutDest" placeholder="출고처" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;display:block;margin-bottom:3px">담당자</label>
+              <input type="text" id="lg2ScanOutManager" placeholder="담당자" style="width:100%;padding:7px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box" />
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="lg2ConfirmScanOut()" style="flex:1;font-size:13px;padding:9px;background:#e74c3c;color:#fff;border:none;border-radius:8px;cursor:pointer">
+              <i class="fas fa-check"></i> 출고 등록
+            </button>
+            <button onclick="lg2CancelScanForm()" style="padding:9px 14px;border:1.5px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:12px">취소</button>
           </div>
         </div>
       </div>
