@@ -161,24 +161,23 @@ document.addEventListener('click', function(e) {
 function lg2GetFifoStock(itemName, warehouse) {
   var wh       = warehouse || null;
   var baseDate = _lg2StocktakeBaseDate || null;
+  var itemTrim = (itemName || '').trim();
 
-  // ══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════
   // [A] 실사 기준일이 설정된 경우
-  //   ① 실사 스냅샷(actual_qty)을 재고 시작점으로 사용
-  //   ② 기준일 이후 입고만 더함
-  //   ③ 기준일 이후 출고만 FIFO 차감
-  //   ④ 실사 스냅샷이 없는 품목은 전체 입출고 기준으로 계산
-  // ══════════════════════════════════════════════════════════
+  //   ① 실사 actual_qty = 해당 소비기한의 실제 재고 기준점
+  //   ② 기준일 이후 입고 더함 (strict: baseDate 초과)
+  //   ③ 기준일 이후 출고 FIFO 차감
+  //   ④ 실사 스냅샷이 없는 품목은 전체 입출고 기준
+  // ════════════════════════════════════════════════════════
   if (baseDate) {
-    var itemTrim = (itemName || '').trim();
-
-    // ① 실사 스냅샷: 기준일 이하 실사 데이터 중 소비기한별 가장 최근 것
+    // ① 실사 스냅샷: 기준일 이하(≤) 실사 데이터 중 소비기한별 가장 최근 것
     var auditSnap = {}; // { expKey: { actual_qty, snapDate } }
     _lg2AuditData.forEach(function(a) {
       if ((a.item_name || '').trim() !== itemTrim) return;
       if (wh && a.warehouse !== wh) return;
       var aDate = a.date || a.audit_date || '';
-      if (!aDate || aDate > baseDate) return;
+      if (!aDate || aDate > baseDate) return; // baseDate 이하만
       var expKey = a.expiry || '';
       if (!auditSnap[expKey] || aDate > auditSnap[expKey].snapDate) {
         auditSnap[expKey] = { actual_qty: Number(a.actual_qty) || 0, snapDate: aDate };
@@ -188,45 +187,50 @@ function lg2GetFifoStock(itemName, warehouse) {
     var hasSnap = Object.keys(auditSnap).length > 0;
 
     if (hasSnap) {
-      // ② 기준일 이후 입고 (strict: baseDate 초과)
-      var inMap = {};
-      // 실사 스냅샷을 inMap 시작점으로 설정
+      // 실사 스냅샷을 시작점으로 설정
+      // inQty = actual_qty (실사수량 그대로), outQty = 0 시작
+      var snapMap = {}; // { expKey: { expiry, inQty, outQty } }
       Object.keys(auditSnap).forEach(function(expKey) {
-        var key = expKey + '||' + (wh || '');
-        inMap[key] = { expiry: expKey, warehouse: wh || '', inQty: auditSnap[expKey].actual_qty, outQty: 0 };
+        snapMap[expKey] = {
+          expiry:    expKey,
+          warehouse: wh || '',
+          inQty:     auditSnap[expKey].actual_qty, // 실사수량
+          outQty:    0
+        };
       });
-      // 기준일 이후 입고 추가
+
+      // ② 기준일 이후 입고 추가 (strict: baseDate 초과)
       _lg2InboundData.forEach(function(r) {
         if ((r.item_name || '').trim() !== itemTrim) return;
         if (wh && r.warehouse !== wh) return;
-        if (!r.date || r.date <= baseDate) return; // 기준일 이후만
-        var key = (r.expiry || '') + '||' + (r.warehouse || '');
-        if (!inMap[key]) inMap[key] = { expiry: r.expiry || '', warehouse: r.warehouse || '', inQty: 0, outQty: 0 };
-        inMap[key].inQty += Number(r.qty_ea) || 0;
+        if (!r.date || r.date <= baseDate) return;
+        var expKey = r.expiry || '';
+        if (!snapMap[expKey]) snapMap[expKey] = { expiry: expKey, warehouse: r.warehouse || '', inQty: 0, outQty: 0 };
+        snapMap[expKey].inQty += Number(r.qty_ea) || 0;
       });
-      // ③ 기준일 이후 출고만 FIFO 차감
+
+      // ③ 기준일 이후 출고 FIFO 차감
       var outAfter = _lg2OutboundData.filter(function(r) {
         if ((r.item_name || '').trim() !== itemTrim) return false;
         if (wh && r.warehouse !== wh) return false;
         return r.date && r.date > baseDate;
       });
-      var keys = Object.keys(inMap).sort(function(a, b) {
-        return (inMap[a].expiry || '9999').localeCompare(inMap[b].expiry || '9999');
+      var snapKeys = Object.keys(snapMap).sort(function(a, b) {
+        return (snapMap[a].expiry || '9999').localeCompare(snapMap[b].expiry || '9999');
       });
       var remaining = outAfter.reduce(function(s, r) { return s + (Number(r.qty_ea) || 0); }, 0);
-      keys.forEach(function(k) {
+      snapKeys.forEach(function(k) {
         if (remaining <= 0) return;
-        var d = Math.min(remaining, inMap[k].inQty);
-        inMap[k].outQty += d;
-        remaining -= d;
+        var d = Math.min(remaining, snapMap[k].inQty - snapMap[k].outQty);
+        if (d > 0) { snapMap[k].outQty += d; remaining -= d; }
       });
-      return keys.map(function(k) {
-        var row = inMap[k];
+      return snapKeys.map(function(k) {
+        var row = snapMap[k];
         return { expiry: row.expiry, warehouse: row.warehouse, inQty: row.inQty, outQty: row.outQty, stock: row.inQty - row.outQty };
       });
     }
 
-    // ④ 실사 스냅샷이 없는 품목: 전체 입출고 기준으로 계산 (실사 대상 아님)
+    // ④ 실사 스냅샷 없는 품목: 전체 입출고 FIFO
     var inMap2 = {};
     _lg2InboundData.forEach(function(r) {
       if ((r.item_name || '').trim() !== itemTrim) return;
@@ -236,9 +240,7 @@ function lg2GetFifoStock(itemName, warehouse) {
       inMap2[key].inQty += Number(r.qty_ea) || 0;
     });
     var outAll = _lg2OutboundData.filter(function(r) {
-      if ((r.item_name || '').trim() !== itemTrim) return false;
-      if (wh && r.warehouse !== wh) return false;
-      return true;
+      return (r.item_name || '').trim() === itemTrim && (!wh || r.warehouse === wh);
     });
     var keys2 = Object.keys(inMap2).sort(function(a, b) {
       return (inMap2[a].expiry || '9999').localeCompare(inMap2[b].expiry || '9999');
@@ -246,9 +248,8 @@ function lg2GetFifoStock(itemName, warehouse) {
     var rem2 = outAll.reduce(function(s, r) { return s + (Number(r.qty_ea) || 0); }, 0);
     keys2.forEach(function(k) {
       if (rem2 <= 0) return;
-      var d = Math.min(rem2, inMap2[k].inQty);
-      inMap2[k].outQty += d;
-      rem2 -= d;
+      var d = Math.min(rem2, inMap2[k].inQty - inMap2[k].outQty);
+      if (d > 0) { inMap2[k].outQty += d; rem2 -= d; }
     });
     return keys2.map(function(k) {
       var row = inMap2[k];
@@ -256,21 +257,19 @@ function lg2GetFifoStock(itemName, warehouse) {
     });
   }
 
-  // ══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════
   // [B] 실사 기준일 미설정: 전체 입출고 FIFO 계산
-  // ══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════
   var inMap = {};
   _lg2InboundData.forEach(function(r) {
-    if ((r.item_name || '').trim() !== (itemName || '').trim()) return;
+    if ((r.item_name || '').trim() !== itemTrim) return;
     if (wh && r.warehouse !== wh) return;
     var key = (r.expiry || '') + '||' + (r.warehouse || '');
     if (!inMap[key]) inMap[key] = { expiry: r.expiry || '', warehouse: r.warehouse || '', inQty: 0, outQty: 0 };
     inMap[key].inQty += Number(r.qty_ea) || 0;
   });
   var outList = _lg2OutboundData.filter(function(r) {
-    if ((r.item_name || '').trim() !== (itemName || '').trim()) return false;
-    if (wh && r.warehouse !== wh) return false;
-    return true;
+    return (r.item_name || '').trim() === itemTrim && (!wh || r.warehouse === wh);
   });
   var keys = Object.keys(inMap).sort(function(a, b) {
     return (inMap[a].expiry || '9999').localeCompare(inMap[b].expiry || '9999');
@@ -278,9 +277,8 @@ function lg2GetFifoStock(itemName, warehouse) {
   var remaining = outList.reduce(function(sum, r) { return sum + (Number(r.qty_ea) || 0); }, 0);
   keys.forEach(function(k) {
     if (remaining <= 0) return;
-    var deduct = Math.min(remaining, inMap[k].inQty);
-    inMap[k].outQty += deduct;
-    remaining -= deduct;
+    var deduct = Math.min(remaining, inMap[k].inQty - inMap[k].outQty);
+    if (deduct > 0) { inMap[k].outQty += deduct; remaining -= deduct; }
   });
   return keys.map(function(k) {
     var row = inMap[k];
