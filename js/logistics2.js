@@ -301,7 +301,7 @@ function lg2RenderOverview() {
   var q  = ((document.getElementById('lg2OvSearch') || {}).value || '').toLowerCase();
   var showZero = (document.getElementById('lg2OvShowZero') || {}).checked || false;
 
-  // 품목 목록 추출 (입고 기준)
+  // 품목 목록 추출 (입고 + 실사 데이터 합집합)
   var itemSet = {};
   _lg2InboundData.forEach(function(r) {
     var name = (r.item_name || '').trim();
@@ -310,6 +310,18 @@ function lg2RenderOverview() {
     var key = name + '||' + w;
     if (!itemSet[key]) itemSet[key] = { name: name, warehouse: w };
   });
+  // 실사 기준일이 있으면 실사 데이터의 품목도 포함
+  if (_lg2StocktakeBaseDate) {
+    _lg2AuditData.forEach(function(a) {
+      var name = (a.item_name || '').trim();
+      var w    = a.warehouse || '';
+      if (!name) return;
+      var aDate = a.date || a.audit_date || '';
+      if (!aDate || aDate > _lg2StocktakeBaseDate) return;
+      var key = name + '||' + w;
+      if (!itemSet[key]) itemSet[key] = { name: name, warehouse: w };
+    });
+  }
 
   var rows = Object.values(itemSet);
   if (wh) rows = rows.filter(function(r) { return r.warehouse === wh; });
@@ -1863,19 +1875,17 @@ async function lg2SaveFullAudit() {
   });
 
   if (!records.length) { showToast('입력된 실사 수량이 없습니다.', 'warning'); return; }
-  if (!confirm(records.length + '건의 실사 결과를 저장하시겠습니까?\n차이가 있는 항목은 재고가 자동 조정됩니다.')) return;
+  if (!confirm(records.length + '건의 실사 결과를 저장하시겠습니까?\n실사 수량이 재고 기준점이 됩니다.')) return;
 
   showToast('실사 저장 중...', 'info');
   try {
-    var adjCreated = 0;
     var user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
     var userName = user ? (user.name || user.email) : '관리자';
 
+    // 실사 스냅샷만 저장 (재고조정 입출고 레코드 미생성)
+    // 전체현황 재고 = 실사 actual_qty + 기준일 이후 입고 - 기준일 이후 출고
     for (var i = 0; i < records.length; i++) {
       var rec  = records[i];
-      var diff = rec.diff;
-
-      // 실사 이력 저장 (일반 실사 모달과 동일한 필드명 사용)
       await apiPost('lg2_audit', {
         date:        rec.audit_date,
         warehouse:   rec.warehouse,
@@ -1883,47 +1893,14 @@ async function lg2SaveFullAudit() {
         expiry:      rec.expiry,
         system_qty:  rec.sys_qty,
         actual_qty:  rec.actual_qty,
-        diff_qty:    diff,
+        diff_qty:    rec.diff,
         manager:     userName,
         memo:        '전체 실사 모드',
         created_at:  Date.now()
       });
-
-      // 차이가 있으면 입고/출고로 재고 조정
-      if (diff !== 0) {
-        var adjLot  = 'ADJ-' + date.replace(/-/g, '') + '-' + String(i + 1).padStart(3, '0');
-        var adjDate = date;
-        if (diff > 0) {
-          await apiPost('lg2_inbound', {
-            date:        adjDate,
-            warehouse:   rec.warehouse,
-            item_name:   rec.item_name,
-            qty_ea:      diff,
-            expiry:      rec.expiry,
-            supplier:    '재고조정',
-            manager:     userName,
-            memo:        '전체실사 플러스 조정 (실사:' + rec.actual_qty + ' / 시스템:' + rec.sys_qty + ')',
-            created_at:  Date.now()
-          });
-        } else {
-          await apiPost('lg2_outbound', {
-            date:        adjDate,
-            warehouse:   rec.warehouse,
-            item_name:   rec.item_name,
-            qty_ea:      Math.abs(diff),
-            destination: '재고조정',
-            manager:     userName,
-            memo:        '전체실사 마이너스 조정 (실사:' + rec.actual_qty + ' / 시스템:' + rec.sys_qty + ')',
-            created_at:  Date.now()
-          });
-        }
-        adjCreated++;
-      }
     }
 
-    var msg = '전체 실사 저장 완료 (' + records.length + '건)';
-    if (adjCreated > 0) msg += ' — 재고 자동 조정 ' + adjCreated + '건 반영';
-    showToast(msg, 'success');
+    showToast('전체 실사 저장 완료 (' + records.length + '건) — 실사 수량이 재고 기준점으로 설정되었습니다.', 'success');
 
     // ★ 실사 기준일을 lg2_stocktake_config에 저장
     try {
