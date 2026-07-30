@@ -500,7 +500,13 @@ function resetForm() {
 async function loadRawMaterials() {
   try {
     const res = await apiGetAll('raw_materials');
-    allRawData = (res || []).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    // 거래일자(receive_date) 내림차순 정렬, 같은 날짜는 등록순(created_at) 내림차순
+    allRawData = (res || []).sort((a, b) => {
+      const dateA = a.receive_date || '';
+      const dateB = b.receive_date || '';
+      if (dateB !== dateA) return dateB.localeCompare(dateA);
+      return (b.created_at || 0) - (a.created_at || 0);
+    });
     applyFilter();
     renderStockSummaryCards();
   } catch (e) {
