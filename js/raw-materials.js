@@ -445,7 +445,7 @@ async function handleSubmit(e) {
 
   // 유효성 검사 - 입고 전용
   if (type === '입고') {
-    if (!record.expiry_date) { showToast('소비기한을 입력하세요.', 'warning'); return; }
+    // 소비기한은 선택 사항 (생두 등 소비기한 없는 품목 허용)
     if (!record.qc_result) { showToast('QC 수입검사 결과를 선택하세요.', 'warning'); return; }
   }
 
