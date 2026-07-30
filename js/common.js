@@ -35,28 +35,40 @@ function numFormat(n, decimals = 2) {
 // ===========================
 // Lot 번호 자동 생성
 // ===========================
-async function generateLotNo(prefix) {
-  const dateStr = today().replace(/-/g, '');
-  try {
-    let tableName = '';
-    if (prefix === 'RM' || prefix === 'IM' || prefix === 'OM') tableName = 'raw_materials';
-    else if (prefix === 'ROAST') tableName = 'roasting_log';
-    else if (prefix === 'GRIND') tableName = 'grinding_log';
-    else if (prefix === 'EXT') tableName = 'extraction_log';
-    else if (prefix === 'BTL') tableName = 'bottle_packing_log';
-    else if (prefix === 'BOX') tableName = 'box_packing_log';
+// prefix: 'RST'|'GRD'|'EXT'|'BTL'|'BOX'|'RM' 등
+// workDate: 'YYYY-MM-DD' 형식 (없으면 오늘)
+async function generateLotNo(prefix, workDate) {
+  // 작업일자 기반 날짜 문자열 (YYMMDD)
+  const baseDate = workDate ? new Date(workDate) : new Date();
+  const yy = String(baseDate.getFullYear()).slice(2);
+  const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(baseDate.getDate()).padStart(2, '0');
+  const dateStr = `${yy}${mm}${dd}`;
 
-    const res = await fetch(`tables/${tableName}?limit=100`);
+  // 접두어 → 테이블 매핑
+  const tableMap = {
+    'RM': 'raw_materials', 'IM': 'raw_materials', 'OM': 'raw_materials',
+    'RST': 'roasting_log', 'ROAST': 'roasting_log',
+    'GRD': 'grinding_log', 'GRIND': 'grinding_log',
+    'EXT': 'extraction_log',
+    'BTL': 'bottle_packing_log',
+    'BOX': 'box_packing_log',
+  };
+  const tableName = tableMap[prefix] || '';
+
+  try {
+    if (!tableName) throw new Error('unknown prefix');
+    const res = await fetch(`tables/${tableName}?limit=500`);
     const data = await res.json();
     const rows = data.data || [];
-
-    const todayLots = rows.filter(r =>
+    // 해당 날짜 + 접두어로 시작하는 Lot 개수로 순번 결정
+    const existing = rows.filter(r =>
       r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`)
     );
-    const seq = String(todayLots.length + 1).padStart(3, '0');
+    const seq = String(existing.length + 1).padStart(2, '0');
     return `${prefix}-${dateStr}-${seq}`;
   } catch (e) {
-    const rand = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
+    const rand = String(Math.floor(Math.random() * 99) + 1).padStart(2, '0');
     return `${prefix}-${dateStr}-${rand}`;
   }
 }

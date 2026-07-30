@@ -25,29 +25,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const form = document.getElementById('roastForm');
   if (form) form.addEventListener('submit', handleSubmit);
+
+  // 작업일자 변경 시 Lot No 자동 갱신
+  if (dateEl) dateEl.addEventListener('change', () => initLotNo());
 });
 
 // =====================================================
 // Lot No 자동생성: RST-YYMMDD-01
 // =====================================================
 async function initLotNo() {
-  const lot = await generateProcessLotNo('RST');
+  const workDate = document.getElementById('f_work_date')?.value || new Date().toISOString().split('T')[0];
+  const lot = await generateProcessLotNo('RST', workDate);
   const display = document.getElementById('lotDisplay');
   if (display) { display.textContent = lot; display.dataset.lot = lot; }
 }
 
-async function generateProcessLotNo(prefix) {
+async function generateProcessLotNo(prefix, workDate) {
   try {
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '').slice(2); // YYMMDD
+    const d = workDate ? new Date(workDate) : new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yy}${mm}${dd}`;
     const tableMap = { RST: 'roasting_log', GRD: 'grinding_log', EXT: 'extraction_log', BTL: 'bottle_packing_log', BOX: 'box_packing_log' };
     const table = tableMap[prefix] || 'roasting_log';
     const data = await apiGetAll(table);
-    const todayLots = data.filter(r => r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`));
-    const seq = String(todayLots.length + 1).padStart(2, '0');
+    const existing = data.filter(r => r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`));
+    const seq = String(existing.length + 1).padStart(2, '0');
     return `${prefix}-${dateStr}-${seq}`;
   } catch(e) {
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '').slice(2);
-    return `RST-${dateStr}-01`;
+    const d = workDate ? new Date(workDate) : new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `RST-${yy}${mm}${dd}-01`;
   }
 }
 

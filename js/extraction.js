@@ -10,10 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initLotNo();
   loadData();
   document.getElementById('extractForm').addEventListener('submit', handleSubmit);
+  // 작업일자 변경 시 Lot No 자동 갱신
+  document.getElementById('f_work_date').addEventListener('change', () => initLotNo());
 });
 
 async function initLotNo() {
-  const lot = await generateLotNo('EXT');
+  const workDate = document.getElementById('f_work_date')?.value || today();
+  const lot = await generateLotNo('EXT', workDate);
   document.getElementById('lotDisplay').textContent = lot;
   document.getElementById('lotDisplay').dataset.lot = lot;
 }
