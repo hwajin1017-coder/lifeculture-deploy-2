@@ -51,18 +51,28 @@ async function generateProcessLotNo(prefix) {
   }
 }
 
-// 원료수불부 Lot No 생성 (출고용)
-async function generateRawLotNo(type = '출고') {
+// 원료수불부 출고 Lot No 생성 (로스팅 자동 출고용)
+// 형식: [자재코드]-[YYMMDD]-OUT-[순번] 또는 OUT-[YYMMDD]-[순번] (자재코드 없을 때)
+async function generateRawOutLotNo(sourceLotNo, workDate) {
   try {
-    const prefix = type === '입고' ? 'RM-IN' : type === '출고' ? 'RM-OUT' : 'RM-ADJ';
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '').slice(2);
+    const d = workDate ? new Date(workDate) : new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yy}${mm}${dd}`;
+    // source_lot에서 자재코드 추출 (예: BSN-260615-01 → BSN)
+    const itemCode = sourceLotNo ? sourceLotNo.split('-')[0] : '';
+    const prefix = itemCode ? `${itemCode}-OUT-${dateStr}` : `OUT-${dateStr}`;
     const data = await apiGetAll('raw_materials');
-    const todayLots = data.filter(r => r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`));
-    const seq = String(todayLots.length + 1).padStart(3, '0');
-    return `${prefix}-${dateStr}-${seq}`;
+    const existing = data.filter(r => r.lot_no && r.lot_no.startsWith(prefix));
+    const seq = String(existing.length + 1).padStart(2, '0');
+    return `${prefix}-${seq}`;
   } catch(e) {
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '').slice(2);
-    return `RM-OUT-${dateStr}-001`;
+    const d = workDate ? new Date(workDate) : new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `OUT-${yy}${mm}${dd}-01`;
   }
 }
 
@@ -333,6 +343,7 @@ async function handleSubmit(e) {
     await apiPost('roasting_log', record);
 
     // 원료수불부 출고 자동 기록 (각 생두 Lot별)
+    // source_lot: 입고 Lot No, reference_lot: 로스팅 Lot No
     const slots = [
       { lot: record.raw_lot_1, name: record.raw_name_1, qty: record.raw_qty_1 },
       { lot: record.raw_lot_2, name: record.raw_name_2, qty: record.raw_qty_2 },
@@ -340,17 +351,23 @@ async function handleSubmit(e) {
     ].filter(s => s.lot && s.qty > 0);
 
     for (const slot of slots) {
-      const outLot = await generateRawLotNo('출고');
+      // 입고 Lot에서 자재코드 추출 (BSN-260615-01 → BSN)
+      const itemCodeFromLot = slot.lot.split('-')[0] || '';
+      const outLot = await generateRawOutLotNo(slot.lot, workDate);
       await apiPost('raw_materials', {
         lot_no: outLot,
         transaction_type: '출고',
         receive_date: workDate,
+        item_code: itemCodeFromLot,
         item_name: slot.name,
         item_type: '생두',
-        used_qty: slot.qty,
+        out_qty: slot.qty,        // out_qty 필드 사용 (재고 차감 기준)
+        used_qty: slot.qty,       // 호환성 유지
         receive_qty: 0,
         balance: 0,
-        reference_lot: slot.lot,
+        source_lot: slot.lot,     // 입고 Lot No (재고 차감 연동)
+        reference_lot: lot,       // 로스팅 Lot No
+        out_purpose: '로스팅 투입',
         notes: `로스팅 투입 (${lot})`,
         qc_result: '합격',
         manager: record.worker,

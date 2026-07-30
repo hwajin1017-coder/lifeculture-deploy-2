@@ -108,29 +108,73 @@ async function onMaterialSelect() {
 
 // =====================================================
 // Lot No 자동생성
+// 형식: [자재코드]-[YYMMDD]-[연간순번2자리]
+// 예) BSN-260615-01 (브라질 세하도 NY2 생두, 2026년 첫 번째 입고)
+// 출고/조정 시에는 Lot No 표시 영역 숨김
 // =====================================================
 async function refreshLotNo() {
   const display = document.getElementById('lotDisplay');
+  const lotWrap = document.getElementById('lotWrap');
   if (!display) return;
-  display.textContent = '생성 중...';
+
   const type = document.getElementById('f_transaction_type')?.value || '입고';
-  const lot = await generateRawLotNo(type);
+
+  // 출고/조정 시 Lot No 표시 숨김 (출고는 source_lot 사용)
+  if (type !== '입고') {
+    if (lotWrap) lotWrap.style.display = 'none';
+    display.textContent = '';
+    display.dataset.lot = '';
+    return;
+  }
+
+  if (lotWrap) lotWrap.style.display = '';
+  display.textContent = '생성 중...';
+
+  // 자재코드 가져오기
+  const itemCode = document.getElementById('f_item_code')?.value?.trim() || '';
+  const receiveDateEl = document.getElementById('f_receive_date');
+  const receiveDate = receiveDateEl?.value || new Date().toISOString().split('T')[0];
+
+  const lot = await generateRawLotNo(itemCode, receiveDate);
   display.textContent = lot;
   display.dataset.lot = lot;
 }
 
-async function generateRawLotNo(type) {
+// [자재코드]-[YYMMDD]-[연간순번2자리] 형식 생성
+async function generateRawLotNo(itemCode, receiveDate) {
   try {
-    const prefix = type === '입고' ? 'RM-IN' : type === '출고' ? 'RM-OUT' : 'RM-ADJ';
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '').slice(2);
+    // 날짜 파싱 (YYYY-MM-DD → YYMMDD)
+    const d = receiveDate ? new Date(receiveDate) : new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yy}${mm}${dd}`;
+
+    // 자재코드가 없으면 폴백 (RM-YYMMDD-NNN)
+    if (!itemCode) {
+      const data = await apiGetAll('raw_materials');
+      const fallbackPrefix = `RM-${dateStr}`;
+      const existing = data.filter(r => r.lot_no && r.lot_no.startsWith(fallbackPrefix));
+      return `${fallbackPrefix}-${String(existing.length + 1).padStart(2, '0')}`;
+    }
+
+    // 해당 연도(YY)에 동일 자재코드로 입고된 레코드 수 조회
     const data = await apiGetAll('raw_materials');
-    const todayLots = data.filter(r => r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`));
-    const seq = String(todayLots.length + 1).padStart(3, '0');
-    return `${prefix}-${dateStr}-${seq}`;
+    const yearPrefix = `${itemCode}-${yy}`; // 예) BSN-26
+    const sameYearInbound = data.filter(r =>
+      r.transaction_type === '입고' &&
+      r.lot_no &&
+      r.lot_no.startsWith(yearPrefix)
+    );
+    const seq = String(sameYearInbound.length + 1).padStart(2, '0');
+    return `${itemCode}-${dateStr}-${seq}`;
   } catch(e) {
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '').slice(2);
-    const rand = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
-    return `RM-IN-${dateStr}-${rand}`;
+    const d = receiveDate ? new Date(receiveDate) : new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const rand = String(Math.floor(Math.random() * 99) + 1).padStart(2, '0');
+    return `${itemCode || 'RM'}-${yy}${mm}${dd}-${rand}`;
   }
 }
 
@@ -565,9 +609,16 @@ function renderStockSummaryCards() {
     if (!r.item_name) return;
     if (!stockMap[r.item_name]) stockMap[r.item_name] = { name: r.item_name, balance: 0, unit: r.unit || '' };
     if (r.transaction_type === '입고') stockMap[r.item_name].balance += parseFloat(r.receive_qty || 0);
-    else if (r.transaction_type === '출고') stockMap[r.item_name].balance -= parseFloat(r.used_qty || r.receive_qty || 0);
+    else if (r.transaction_type === '출고') {
+      // out_qty 우선, 없으면 used_qty, 그도 없으면 receive_qty 폴백
+      const outAmt = parseFloat(r.out_qty || r.used_qty || r.receive_qty || 0);
+      stockMap[r.item_name].balance -= outAmt;
+    }
     else if (r.transaction_type === '조정') stockMap[r.item_name].balance = parseFloat(r.balance || 0);
-    if (r.balance != null && r.balance !== '') stockMap[r.item_name].balance = parseFloat(r.balance);
+    // balance 필드가 있으면 해당 시점 재고로 덮어쓰기 (입고 레코드에만 적용)
+    if (r.transaction_type === '입고' && r.balance != null && r.balance !== '') {
+      stockMap[r.item_name].balance = parseFloat(r.balance);
+    }
   });
 
   const items = Object.values(stockMap);
