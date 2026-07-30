@@ -822,7 +822,10 @@ async function openEditModal(id) {
           ${['생두','부재료','포장재','기타'].map(t => `<option ${rec.item_type===t?'selected':''}>${t}</option>`).join('')}
         </select></div>
       <div class="form-group"><label>이월재고</label><input type="number" id="e_carry_over" value="${rec.carry_over||0}" step="0.01" /></div>
-      <div class="form-group"><label>${isOut ? '출고수량' : '금일입고수량'}</label><input type="number" id="e_receive_qty" value="${rec.receive_qty||0}" step="0.01" /></div>
+      ${isOut
+        ? `<div class="form-group"><label>출고수량</label><input type="number" id="e_out_qty" value="${rec.out_qty||rec.used_qty||0}" step="0.01" /></div>`
+        : `<div class="form-group"><label>금일입고수량</label><input type="number" id="e_receive_qty" value="${rec.receive_qty||0}" step="0.01" /></div>`
+      }
       <div class="form-group"><label>금일사용량</label><input type="number" id="e_used_qty" value="${rec.used_qty||0}" step="0.01" /></div>
       <div class="form-group"><label>현재재고</label><input type="number" id="e_balance" value="${rec.balance||0}" step="0.01" /></div>
       <div class="form-group"><label>단위</label>
@@ -863,8 +866,9 @@ async function saveEdit() {
     item_name: document.getElementById('e_item_name').value,
     item_type: document.getElementById('e_item_type').value,
     carry_over: parseFloat(document.getElementById('e_carry_over').value) || 0,
-    receive_qty: parseFloat(document.getElementById('e_receive_qty').value) || 0,
-    used_qty: parseFloat(document.getElementById('e_used_qty').value) || 0,
+    receive_qty: isOut ? (rec.receive_qty || 0) : (parseFloat(document.getElementById('e_receive_qty')?.value) || 0),
+    out_qty: isOut ? (parseFloat(document.getElementById('e_out_qty')?.value) || 0) : (rec.out_qty || 0),
+    used_qty: isOut ? (parseFloat(document.getElementById('e_out_qty')?.value) || 0) : (parseFloat(document.getElementById('e_used_qty')?.value) || 0),
     balance: parseFloat(document.getElementById('e_balance').value) || 0,
     unit: document.getElementById('e_unit').value,
     manager: document.getElementById('e_manager').value,
@@ -895,8 +899,9 @@ async function saveEdit() {
 async function deleteRecord(id) {
   showConfirm('이 수불 내역을 삭제하시겠습니까?', async () => {
     try {
-      const delRec = allData ? allData.find(r => r.id === (id || editingId)) : null;
-      await apiDelete('raw_materials', id || editingId);
+      const targetId = id || editingId;
+      const delRec = allRawData.find(r => r.id === targetId);
+      await apiDelete('raw_materials', targetId);
       if (delRec && typeof updateKpiCache === 'function') updateKpiCache('raw_materials', delRec, -1);
       showToast('삭제되었습니다.', 'success');
       closeEditModal();
