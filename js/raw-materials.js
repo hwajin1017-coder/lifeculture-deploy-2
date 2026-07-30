@@ -423,6 +423,7 @@ async function handleSubmit(e) {
     country_of_origin: strVal('f_country'),
     storage_location: strVal('f_storage_location'),
     // 입고 전용
+    production_date: strVal('f_production_date'),
     expiry_date: strVal('f_expiry_date'),
     qc_result: strVal('f_qc_result'),
     inspector: strVal('f_inspector'),
@@ -578,6 +579,7 @@ function renderTable() {
         <td style="color:${isOut?'#e74c3c':'inherit'}">${r.used_qty != null ? numFormat(r.used_qty, 2) : '-'}</td>
         <td><strong style="color:#1e8449">${r.balance != null ? numFormat(r.balance, 2) : '-'}</strong></td>
         <td>${r.unit || '-'}</td>
+        <td style="font-size:12px">${r.production_date || '-'}</td>
         <td>${expiryHtml}</td>
         <td>${qcBadge}</td>
         <td>${r.manager || r.inspector || '-'}</td>
@@ -689,6 +691,7 @@ async function loadJournal() {
       <td style="text-align:right;color:${isOut?'#e74c3c':'inherit'}">${r.used_qty != null ? numFormat(r.used_qty, 2) : '-'}</td>
       <td style="text-align:right;font-weight:700;color:#1e8449">${r.balance != null ? numFormat(r.balance, 2) : '-'}</td>
       <td>${r.unit || '-'}</td>
+      <td style="font-size:12px">${r.production_date || '-'}</td>
       <td>${r.expiry_date || '-'}</td>
       <td>${qcBadge}</td>
       <td>${r.manager || r.inspector || '-'}</td>
@@ -731,12 +734,12 @@ function exportJournal() {
     return matchDate && matchType && matchSearch;
   }).sort((a, b) => (a.receive_date || '').localeCompare(b.receive_date || ''));
 
-  const headers = ['No', 'Lot No', '거래일자', '거래유형', '품목구분', '품목명', '이월재고', '금일입고', '금일사용량', '현재재고', '단위', '소비기한', 'QC/출고목적', '담당자', '공급업체', '비고'];
+  const headers = ['No', 'Lot No', '거래일자', '거래유형', '품목구분', '품목명', '이월재고', '금일입고', '금일사용량', '현재재고', '단위', '생산일자', '소비기한', 'QC/출고목적', '담당자', '공급업체', '비고'];
   const rows = filtered.map((r, i) => [
     i + 1, r.lot_no || '', r.receive_date || '', r.transaction_type || '',
     r.item_type || '', r.item_name || '',
     r.carry_over || 0, r.receive_qty || 0, r.used_qty || 0, r.balance || 0,
-    r.unit || '', r.expiry_date || '',
+    r.unit || '', r.production_date || '', r.expiry_date || '',
     r.qc_result || r.out_purpose || r.quality_status || '',
     r.manager || r.inspector || '', r.supplier || '',
     r.notes || (r.source_lot ? `참조: ${r.source_lot}` : '')
@@ -754,12 +757,12 @@ function exportJournal() {
 }
 
 function exportLedger() {
-  const headers = ['Lot No', '거래유형', '거래일자', '품목구분', '품목명', '이월재고', '금일입고', '금일사용량', '현재재고', '단위', '소비기한', 'QC/출고목적', '담당자', '공급업체', '비고'];
+  const headers = ['Lot No', '거래유형', '거래일자', '품목구분', '품목명', '이월재고', '금일입고', '금일사용량', '현재재고', '단위', '생산일자', '소비기한', 'QC/출고목적', '담당자', '공급업체', '비고'];
   const rows = filteredData.map(r => [
     r.lot_no || '', r.transaction_type || '', r.receive_date || '',
     r.item_type || '', r.item_name || '',
     r.carry_over || 0, r.receive_qty || 0, r.used_qty || 0, r.balance || 0,
-    r.unit || '', r.expiry_date || '',
+    r.unit || '', r.production_date || '', r.expiry_date || '',
     r.qc_result || r.out_purpose || r.quality_status || '',
     r.manager || r.inspector || '', r.supplier || '',
     r.notes || (r.source_lot ? `참조: ${r.source_lot}` : '')
@@ -831,6 +834,7 @@ async function openEditModal(id) {
         </select></div>
       <div class="form-group"><label>출고 Lot 참조</label><input type="text" id="e_source_lot" value="${rec.source_lot||''}" /></div>
       ` : `
+      <div class="form-group"><label>생산일자</label><input type="date" id="e_production_date" value="${rec.production_date||''}" /></div>
       <div class="form-group"><label>소비기한</label><input type="date" id="e_expiry_date" value="${rec.expiry_date||''}" /></div>
       <div class="form-group"><label>QC 수입검사</label>
         <select id="e_qc_result"><option value="">선택</option>${qcOptions}</select></div>
@@ -870,6 +874,7 @@ async function saveEdit() {
       out_purpose: document.getElementById('e_out_purpose')?.value || '',
       source_lot: document.getElementById('e_source_lot')?.value || '',
     } : {
+      production_date: document.getElementById('e_production_date')?.value || '',
       expiry_date: document.getElementById('e_expiry_date')?.value || '',
       qc_result: document.getElementById('e_qc_result')?.value || '',
     }),
