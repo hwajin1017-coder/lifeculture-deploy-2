@@ -28,12 +28,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (fromEl) fromEl.value = `${y}-${m}-01`;
   if (toEl) toEl.value = today;
 
-  // Promise.all 병렬 로드 (독립적인 두 컬렉션을 동시에 요청)
+  // Promise.all 병렬 로드 (독립적인 두 콜렉션을 동시에 요청)
   await Promise.all([loadMasterData(), loadRawMaterials()]);
   renderStockSummaryCards();
 
   const form = document.getElementById('rawForm');
   if (form) form.addEventListener('submit', handleSubmit);
+
+  // 거래일자 변경 시 Lot No 자동 갱신 (입고일 기준으로 Lot No 부여)
+  if (dateEl) dateEl.addEventListener('change', () => refreshLotNo());
 });
 
 // =====================================================
