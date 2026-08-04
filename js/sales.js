@@ -12,6 +12,7 @@ let currentPage = 1;
 const pageSize = 50;
 let editingId = null;
 let isArchiveLoaded = false;
+let _salesProductMasterCache = null; // 제품마스터 캐시 (제품명 datalist용)
 
 // 기간 선택 필터 (연도/월)
 let periodYear = '';  // '' = 전체, '2026' 등
@@ -227,8 +228,26 @@ function buildFilterOptions() {
   // datalist 업데이트
   const chList = document.getElementById('channelList');
   if (chList) chList.innerHTML = channels.map(c => `<option value="${c}">`).join('');
+
+  // productList datalist: 제품마스터 제품명 + 기존 판매 데이터 제품명 합집합
   const prList = document.getElementById('productList');
-  if (prList) prList.innerHTML = products.map(p => `<option value="${p}">`).join('');
+  if (prList) {
+    // 제품마스터 비동기 로드 (캐시 없으면 신규 요청)
+    if (!_salesProductMasterCache) {
+      apiGetAll('products').then(masterList => {
+        _salesProductMasterCache = masterList || [];
+        const masterNames = _salesProductMasterCache.map(p => p.product_name).filter(Boolean);
+        const allNames = [...new Set([...masterNames, ...products])].sort();
+        prList.innerHTML = allNames.map(p => `<option value="${p}">`).join('');
+      }).catch(() => {
+        prList.innerHTML = products.map(p => `<option value="${p}">`).join('');
+      });
+    } else {
+      const masterNames = _salesProductMasterCache.map(p => p.product_name).filter(Boolean);
+      const allNames = [...new Set([...masterNames, ...products])].sort();
+      prList.innerHTML = allNames.map(p => `<option value="${p}">`).join('');
+    }
+  }
 }
 
 // ===========================

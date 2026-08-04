@@ -8,6 +8,8 @@ let currentPage = 1;
 const pageSize = 15;
 let editingId = null;
 let _codeManuallyEdited = false; // 사용자가 직접 수정했는지 여부
+let _prevMaterialCode = ''; // 수정 전 자재코드 (연동 갱신용)
+let _prevMaterialName = ''; // 수정 전 자재명 (연동 갱신용)
 
 document.addEventListener('DOMContentLoaded', () => {
   loadMaterials();
@@ -367,7 +369,65 @@ async function handleSubmit(e) {
     if (editingId) {
       await apiPut('materials_master', editingId, data);
       showToast(`✅ [${data.material_code}] ${data.material_name} 수정 완료`, 'success');
+
+      // ── 연동 갱신: raw_materials 컬렉션 ──
+      // 자재코드 또는 자재명이 변경된 경우에만 연동 갱신 실행
+      const codeChanged = _prevMaterialCode && _prevMaterialCode !== data.material_code;
+      const nameChanged = _prevMaterialName && _prevMaterialName !== data.material_name;
+      if (codeChanged || nameChanged) {
+        try {
+          const rawAll = await apiGetAll('raw_materials');
+          // 기존 코드 또는 이름으로 매칭되는 레코드 찾기
+          const toUpdate = rawAll.filter(r =>
+            (codeChanged && r.item_code === _prevMaterialCode) ||
+            (nameChanged && r.item_name === _prevMaterialName)
+          );
+          for (const r of toUpdate) {
+            const patch = {};
+            if (codeChanged) patch.item_code = data.material_code;
+            if (nameChanged) patch.item_name = data.material_name;
+            // 단위/공급업체/단가/원산지도 마스터 기준으로 갱신
+            if (data.unit) patch.unit = data.unit;
+            if (data.supplier) patch.supplier = data.supplier;
+            if (data.standard_price) patch.unit_price = data.standard_price;
+            if (data.origin_country) patch.country_of_origin = data.origin_country;
+            await apiPatch('raw_materials', r.id, patch);
+          }
+          if (toUpdate.length > 0) {
+            showToast(`원료수불부 ${toUpdate.length}건 자동 갱신됨`, 'info');
+          }
+        } catch(syncErr) {
+          console.warn('[materials-master] raw_materials 연동 갱신 실패:', syncErr);
+        }
+      }
+
+      // ── 연동 갱신: roasting_log 컬렉션 (생두 투입명) ──
+      if (nameChanged) {
+        try {
+          const roastAll = await apiGetAll('roasting_log');
+          const roastToUpdate = roastAll.filter(r =>
+            r.raw_name_1 === _prevMaterialName ||
+            r.raw_name_2 === _prevMaterialName ||
+            r.raw_name_3 === _prevMaterialName
+          );
+          for (const r of roastToUpdate) {
+            const patch = {};
+            if (r.raw_name_1 === _prevMaterialName) patch.raw_name_1 = data.material_name;
+            if (r.raw_name_2 === _prevMaterialName) patch.raw_name_2 = data.material_name;
+            if (r.raw_name_3 === _prevMaterialName) patch.raw_name_3 = data.material_name;
+            await apiPatch('roasting_log', r.id, patch);
+          }
+          if (roastToUpdate.length > 0) {
+            showToast(`로스팅 일지 ${roastToUpdate.length}건 자동 갱신됨`, 'info');
+          }
+        } catch(syncErr) {
+          console.warn('[materials-master] roasting_log 연동 갱신 실패:', syncErr);
+        }
+      }
+
       editingId = null;
+      _prevMaterialCode = '';
+      _prevMaterialName = '';
     } else {
       await apiPost('materials_master', data);
       showToast(`✅ [${data.material_code}] ${data.material_name} 등록 완료`, 'success');
@@ -392,6 +452,8 @@ function openEditModal(id) {
   if (!m) return;
   editingId = id;
   _codeManuallyEdited = true; // 수정 시에는 기존 코드 유지
+  _prevMaterialCode = m.material_code || '';
+  _prevMaterialName = m.material_name || '';
 
   const fields = ['material_name', 'material_type', 'unit', 'origin_country',
     'specification', 'standard_price', 'min_stock', 'supplier', 'storage_condition',

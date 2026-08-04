@@ -6,6 +6,8 @@ let filteredProducts = [];
 let currentPage = 1;
 let pageSize = 15;
 let editingId = null;
+let _prevProductName = ''; // 수정 전 제품명 (연동 갱신용)
+let _prevProductCode = ''; // 수정 전 제품코드 (연동 갱신용)
 
 document.addEventListener('DOMContentLoaded', () => {
   loadProducts();
@@ -350,6 +352,8 @@ function openEditModal(id) {
   const p = allProducts.find(r => r.id === id);
   if (!p) return;
   editingId = id;
+  _prevProductName = p.product_name || '';
+  _prevProductCode = p.product_code || '';
 
   const form = document.getElementById('productForm');
   if (form) form.reset();
@@ -492,6 +496,41 @@ async function handleSubmit(e) {
     if (editingId) {
       await apiPut('products', editingId, data);
       showToast('제품 정보가 수정되었습니다.');
+
+      // ── 연동 갱신: 제품명 변경 시 관련 콜렉션 자동 갱신 ──
+      const pNameChanged = _prevProductName && _prevProductName !== data.product_name;
+      const pCodeChanged = _prevProductCode && _prevProductCode !== data.product_code;
+      if (pNameChanged || pCodeChanged) {
+        const collectionsToSync = [
+          { col: 'roasting_log',       field: 'product_name' },
+          { col: 'grinding_log',       field: 'product_name' },
+          { col: 'extraction_log',     field: 'product_name' },
+          { col: 'bottle_packing_log', field: 'product_name' },
+          { col: 'box_packing_log',    field: 'product_name' },
+          { col: 'logistics',          field: 'product_name' },
+          { col: 'wh_inbound',         field: 'item_name' },
+          { col: 'wh_outbound',        field: 'item_name' },
+          { col: 'sales',              field: 'product_name' },
+        ];
+        let totalUpdated = 0;
+        for (const { col, field } of collectionsToSync) {
+          try {
+            const rows = await apiGetAll(col);
+            const toSync = rows.filter(r => pNameChanged && r[field] === _prevProductName);
+            for (const r of toSync) {
+              await apiPatch(col, r.id, { [field]: data.product_name });
+            }
+            totalUpdated += toSync.length;
+          } catch(e) {
+            console.warn(`[products] ${col} 연동 갱신 실패:`, e);
+          }
+        }
+        if (totalUpdated > 0) {
+          showToast(`연관 데이터 ${totalUpdated}건 자동 갱신됨`, 'info');
+        }
+      }
+      _prevProductName = '';
+      _prevProductCode = '';
     } else {
       data.created_at = Date.now();
       await apiPost('products', data);
