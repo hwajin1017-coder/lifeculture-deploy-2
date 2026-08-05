@@ -154,6 +154,19 @@ function getSidebarHTML(activePage = '') {
     }
   ];
 
+  // 쓰기 가능 메뉴 목록 계산 (배지 표시용)
+  let writableMenus = [];
+  if (user) {
+    if (user.role === 'admin') {
+      writableMenus = null; // null = 관리자 (배지 없음)
+    } else if (typeof getUserWritableMenus === 'function') {
+      writableMenus = getUserWritableMenus(user);
+    } else {
+      const rp = typeof ROLE_PERMISSIONS !== 'undefined' ? ROLE_PERMISSIONS[user.role] : null;
+      writableMenus = (rp && rp.canEdit) ? (rp.menus || []) : [];
+    }
+  }
+
   let html = '';
   navGroups.forEach(group => {
     const visibleItems = group.items.filter(item => {
@@ -165,7 +178,17 @@ function getSidebarHTML(activePage = '') {
     visibleItems.forEach(item => {
       const isActive = (item.href === activePage || activePage === item.menu) ? 'active' : '';
       const styleAttr = item.style ? ` style="${item.style}"` : '';
-      html += `<a href="${item.href}" class="nav-item ${isActive}"${styleAttr}><i class="fas ${item.icon}"></i><span>${item.label}</span></a>`;
+      // 권한 배지 (관리자는 표시 안 함)
+      let permBadge = '';
+      if (user && writableMenus !== null) {
+        const canWrite = writableMenus.includes(item.menu);
+        if (canWrite) {
+          permBadge = `<span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:6px;background:rgba(39,174,96,0.25);color:#2ecc71;border:1px solid rgba(46,204,113,0.4);white-space:nowrap;flex-shrink:0">읽기+쓰기</span>`;
+        } else {
+          permBadge = `<span style="margin-left:auto;font-size:9px;padding:1px 5px;border-radius:6px;background:rgba(231,76,60,0.2);color:#e74c3c;border:1px solid rgba(231,76,60,0.35);white-space:nowrap;flex-shrink:0">읽기전용</span>`;
+        }
+      }
+      html += `<a href="${item.href}" class="nav-item ${isActive}"${styleAttr} style="display:flex;align-items:center;gap:6px"><i class="fas ${item.icon}"></i><span style="flex:1">${item.label}</span>${permBadge}</a>`;
     });
     html += '</div>';
   });
