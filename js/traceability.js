@@ -88,7 +88,7 @@ async function traceFromBox(lotNo, allData) {
   // 로스팅에서 생두 Lot 추적 (블랜딩 3가지 지원)
   const rawRecs = [];
   if (roastRec) {
-    const rawLots = [roastRec.raw_lot_no, roastRec.raw_lot_no_2, roastRec.raw_lot_no_3].filter(Boolean);
+    const rawLots = [roastRec.raw_lot_1, roastRec.raw_lot_2, roastRec.raw_lot_3].filter(Boolean);
     rawLots.forEach(lot => {
       const r = all.raw.find(rec => rec.lot_no === lot);
       if (r) rawRecs.push(r);
@@ -122,7 +122,7 @@ async function traceFromBottle(lotNo, allData) {
   const roastRec = grindRec ? (all.roast.find(r => r.lot_no === grindRec.roast_lot_no) || null) : null;
   const rawRecs = [];
   if (roastRec) {
-    [roastRec.raw_lot_no, roastRec.raw_lot_no_2, roastRec.raw_lot_no_3].filter(Boolean).forEach(lot => {
+    [roastRec.raw_lot_1, roastRec.raw_lot_2, roastRec.raw_lot_3].filter(Boolean).forEach(lot => {
       const r = all.raw.find(rec => rec.lot_no === lot);
       if (r) rawRecs.push(r);
     });
@@ -145,7 +145,7 @@ async function traceFromExtraction(lotNo, allData) {
   const roastRec = grindRec ? (all.roast.find(r => r.lot_no === grindRec.roast_lot_no) || null) : null;
   const rawRecs = [];
   if (roastRec) {
-    [roastRec.raw_lot_no, roastRec.raw_lot_no_2, roastRec.raw_lot_no_3].filter(Boolean).forEach(lot => {
+    [roastRec.raw_lot_1, roastRec.raw_lot_2, roastRec.raw_lot_3].filter(Boolean).forEach(lot => {
       const r = all.raw.find(rec => rec.lot_no === lot);
       if (r) rawRecs.push(r);
     });
@@ -167,7 +167,7 @@ async function traceFromGrinding(lotNo, allData) {
   const roastRec = all.roast.find(r => r.lot_no === grindRec.roast_lot_no) || null;
   const rawRecs = [];
   if (roastRec) {
-    [roastRec.raw_lot_no, roastRec.raw_lot_no_2, roastRec.raw_lot_no_3].filter(Boolean).forEach(lot => {
+    [roastRec.raw_lot_1, roastRec.raw_lot_2, roastRec.raw_lot_3].filter(Boolean).forEach(lot => {
       const r = all.raw.find(rec => rec.lot_no === lot);
       if (r) rawRecs.push(r);
     });
@@ -188,7 +188,7 @@ async function traceFromRoasting(lotNo, allData) {
   const btlRec = extRec ? (all.btl.find(r => r.extract_lot_no === extRec.lot_no) || null) : null;
   const boxRec = btlRec ? (all.box.find(r => r.bottle_lot_no === btlRec.lot_no) || null) : null;
   const rawRecs = [];
-  [roastRec.raw_lot_no, roastRec.raw_lot_no_2, roastRec.raw_lot_no_3].filter(Boolean).forEach(lot => {
+  [roastRec.raw_lot_1, roastRec.raw_lot_2, roastRec.raw_lot_3].filter(Boolean).forEach(lot => {
     const r = all.raw.find(rec => rec.lot_no === lot);
     if (r) rawRecs.push(r);
   });
@@ -205,7 +205,7 @@ async function traceFromRaw(lotNo, allData) {
 
   // 생두 Lot를 사용한 로스팅 찾기 (블랜딩 포함)
   const roastRec = all.roast.find(r =>
-    r.raw_lot_no === lotNo || r.raw_lot_no_2 === lotNo || r.raw_lot_no_3 === lotNo
+    r.raw_lot_1 === lotNo || r.raw_lot_2 === lotNo || r.raw_lot_3 === lotNo
   ) || null;
   const grindRec = roastRec ? (all.grind.find(r => r.roast_lot_no === roastRec.lot_no) || null) : null;
   const extRec = grindRec ? (all.ext.find(r => r.grind_lot_no === grindRec.lot_no) || null) : null;
@@ -379,9 +379,9 @@ function renderTraceResult(data, inputLot) {
     ]) : null,
     roastRec ? buildDetailCard('로스팅 정보', 'fa-fire', '#e17055', roastRec, [
       ['Lot No', roastRec.lot_no], ['작업일자', roastRec.work_date],
-      ['생두 Lot #1', roastRec.raw_lot_no || '-'],
-      ['생두 Lot #2', roastRec.raw_lot_no_2 || '-'],
-      ['생두 Lot #3', roastRec.raw_lot_no_3 || '-'],
+      ['생두 Lot #1', roastRec.raw_lot_1 || '-'],
+      ['생두 Lot #2', roastRec.raw_lot_2 || '-'],
+      ['생두 Lot #3', roastRec.raw_lot_3 || '-'],
       ['투입량', `${numFormat(roastRec.raw_qty_in, 2)} kg`],
       ['완료량', `${numFormat(roastRec.roasted_qty, 2)} kg`],
       ['수율', `${roastRec.yield_rate || 0}%`],

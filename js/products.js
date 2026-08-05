@@ -510,6 +510,9 @@ async function handleSubmit(e) {
           { col: 'logistics',          field: 'product_name' },
           { col: 'wh_inbound',         field: 'item_name' },
           { col: 'wh_outbound',        field: 'item_name' },
+          { col: 'lg2_inbound',        field: 'item_name' },
+          { col: 'lg2_outbound',       field: 'item_name' },
+          { col: 'lg2_audit',          field: 'item_name' },
           { col: 'sales',              field: 'product_name' },
         ];
         let totalUpdated = 0;

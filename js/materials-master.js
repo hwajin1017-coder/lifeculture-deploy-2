@@ -425,6 +425,31 @@ async function handleSubmit(e) {
         }
       }
 
+      // ── 연동 갱신: 물류관리2 (lg2_inbound, lg2_outbound, lg2_audit) ──
+      if (nameChanged) {
+        const lg2Cols = [
+          { col: 'lg2_inbound',  field: 'item_name' },
+          { col: 'lg2_outbound', field: 'item_name' },
+          { col: 'lg2_audit',    field: 'item_name' },
+        ];
+        let lg2Updated = 0;
+        for (const { col, field } of lg2Cols) {
+          try {
+            const rows = await apiGetAll(col);
+            const toSync = rows.filter(r => r[field] === _prevMaterialName);
+            for (const r of toSync) {
+              await apiPatch(col, r.id, { [field]: data.material_name });
+            }
+            lg2Updated += toSync.length;
+          } catch(e) {
+            console.warn(`[materials-master] ${col} 연동 갱신 실패:`, e);
+          }
+        }
+        if (lg2Updated > 0) {
+          showToast(`물류관리2 ${lg2Updated}건 자동 갱신됨`, 'info');
+        }
+      }
+
       editingId = null;
       _prevMaterialCode = '';
       _prevMaterialName = '';
