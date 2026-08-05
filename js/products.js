@@ -568,10 +568,45 @@ async function handleSubmit(e) {
 // 데이터 삭제
 // ===========================
 async function deleteProduct(id) {
-  if (!confirm('정말 삭제하시겠습니까?')) return;
+  if (!confirm('정말 삭제하시겠습니까?\n\n※ 이 제품과 연관된 물류관리2 입고/출고/실사 데이터도 함께 삭제됩니다.')) return;
   try {
+    // 삭제할 제품명 먼저 확인
+    const target = allProducts.find(p => p.id === id);
+    const targetName = target ? target.product_name : null;
+
+    // 1. 제품마스터 삭제
     await apiDelete('products', id);
-    showToast('삭제되었습니다.');
+
+    // 2. 연동 컬렉션에서 해당 제품명 레코드 삭제
+    if (targetName) {
+      const linkedCols = [
+        { col: 'lg2_inbound',        field: 'item_name' },
+        { col: 'lg2_outbound',       field: 'item_name' },
+        { col: 'lg2_audit',          field: 'item_name' },
+        { col: 'wh_inbound',         field: 'item_name' },
+        { col: 'wh_outbound',        field: 'item_name' },
+      ];
+      let deletedCount = 0;
+      for (const { col, field } of linkedCols) {
+        try {
+          const rows = await apiGetAll(col);
+          const toDelete = rows.filter(r => r[field] === targetName);
+          for (const r of toDelete) {
+            await apiDelete(col, r.id);
+            deletedCount++;
+          }
+        } catch(e) {
+          console.warn(`[deleteProduct] ${col} 연동 삭제 실패:`, e);
+        }
+      }
+      if (deletedCount > 0) {
+        showToast(`삭제 완료 (연관 데이터 ${deletedCount}건 함께 삭제)`);
+      } else {
+        showToast('삭제되었습니다.');
+      }
+    } else {
+      showToast('삭제되었습니다.');
+    }
     loadProducts();
   } catch (e) {
     showToast('삭제 실패: ' + e.message, 'danger');
