@@ -359,42 +359,113 @@ async function loadDocumentAlert() {
 async function loadStockAlert() {
   const container = document.getElementById('stockAlert');
   try {
-    const res = await apiGet('raw_materials', { limit: 100 });
-    const all = res.data || [];
-    // 품목별 잔량 집계
-    const stockMap = {};
-    all.forEach(r => {
-      const key = r.item_name || r.item_code;
-      if (!key) return;
-      if (!stockMap[key]) stockMap[key] = { name: r.item_name, unit: r.unit, balance: 0 };
-      if (r.transaction_type === '입고') stockMap[key].balance += parseFloat(r.receive_qty) || 0;
-      if (r.transaction_type === '출고') stockMap[key].balance -= parseFloat(r.out_qty) || 0;
-      if (r.transaction_type === '조정') stockMap[key].balance = parseFloat(r.balance) || stockMap[key].balance;
+    const todayStr = today(); // YYYY-MM-DD
+    const soon = new Date(todayStr);
+    soon.setDate(soon.getDate() + 30);
+    const soonStr = soon.toISOString().split('T')[0]; // 30일 이내 소비기한 기준
+
+    // 물류관리2 데이터 및 제품마스터 병렬 조회
+    const [inboundRes, outboundRes, auditRes, configRes, productsRes] = await Promise.all([
+      apiGetAll('lg2_inbound').catch(() => []),
+      apiGetAll('lg2_outbound').catch(() => []),
+      apiGetAll('lg2_audit').catch(() => []),
+      apiGetAll('lg2_stocktake_config').catch(() => []),
+      apiGetAll('products').catch(() => [])
+    ]);
+
+    // 제품마스터 적정재고량 맵 { 품목명: min_stock }
+    const minStockMap = {};
+    (productsRes || []).forEach(p => {
+      if (p.product_name && p.min_stock > 0) minStockMap[p.product_name] = p.min_stock;
     });
-    const items = Object.values(stockMap);
-    if (!items.length) {
-      container.innerHTML = '<div class="empty-msg"><i class="fas fa-inbox"></i>등록된 원자재 없음</div>';
+
+    // 실사 기준일 확인
+    let baseDate = null;
+    if (configRes && configRes.length > 0) {
+      baseDate = configRes.reduce((a, b) => ((a.base_date || '') > (b.base_date || '') ? a : b)).base_date || null;
+    }
+
+    // 품목별 FIFO 재고 계산 (lg2GetFifoStock 간소화 버전)
+    const allItems = new Set();
+    (inboundRes || []).forEach(r => r.item_name && allItems.add(r.item_name));
+    (auditRes || []).forEach(r => r.item_name && allItems.add(r.item_name));
+
+    const stockAlerts = []; // { name, stock, minStock, expiry, status }
+
+    allItems.forEach(itemName => {
+      const inRows = (inboundRes || []).filter(r => r.item_name === itemName);
+      const outRows = (outboundRes || []).filter(r => r.item_name === itemName);
+      const audRows = (auditRes || []).filter(r => r.item_name === itemName);
+
+      // 실사 스냅샷 기준일 적용
+      let totalStock = 0;
+      let earliestExpiry = '';
+
+      if (baseDate) {
+        // 기준일 이하 실사 중 가장 최신것
+        const snap = audRows
+          .filter(a => (a.date || a.audit_date || '') <= baseDate)
+          .sort((a, b) => ((b.date || b.audit_date || '') > (a.date || a.audit_date || '') ? 1 : -1))[0];
+        const snapQty = snap ? (Number(snap.actual_qty) || 0) : 0;
+        // 기준일 이후 입고 - 출고
+        const inAfter = inRows.filter(r => r.date && r.date > baseDate).reduce((s, r) => s + (Number(r.qty_ea) || 0), 0);
+        const outAfter = outRows.filter(r => r.date && r.date > baseDate).reduce((s, r) => s + (Number(r.qty_ea) || 0), 0);
+        totalStock = snapQty + inAfter - outAfter;
+      } else {
+        // 기준일 없으면 전체 입출고 합산
+        const inTotal = inRows.reduce((s, r) => s + (Number(r.qty_ea) || 0), 0);
+        const outTotal = outRows.reduce((s, r) => s + (Number(r.qty_ea) || 0), 0);
+        totalStock = inTotal - outTotal;
+      }
+
+      // 가장 빠른 소비기한 (입고 데이터 기준)
+      const expiries = inRows.map(r => r.expiry).filter(e => e && e > todayStr).sort();
+      earliestExpiry = expiries[0] || '';
+
+      const minStock = minStockMap[itemName] || 0;
+      let status = '정상';
+      if (totalStock <= 0) status = '재고없음';
+      else if (minStock > 0 && totalStock < minStock) status = '부족';
+      else if (earliestExpiry && earliestExpiry <= soonStr) status = '소비기한임박';
+
+      if (status !== '정상') {
+        stockAlerts.push({ name: itemName, stock: totalStock, minStock, expiry: earliestExpiry, status });
+      }
+    });
+
+    if (!stockAlerts.length) {
+      container.innerHTML = '<div class="empty-msg"><i class="fas fa-check-circle" style="color:#27ae60"></i> 재고 이상 없음</div>';
       return;
     }
+
+    // 상태 우선순서: 재고없음 > 부족 > 소비기한임박
+    const order = { '재고없음': 0, '부족': 1, '소비기한임박': 2 };
+    stockAlerts.sort((a, b) => (order[a.status] || 9) - (order[b.status] || 9));
+
+    const badgeMap = {
+      '재고없음': '<span class="badge" style="background:#e74c3c;color:#fff">재고없음</span>',
+      '부족':     '<span class="badge" style="background:#f39c12;color:#fff">부족</span>',
+      '소비기한임박': '<span class="badge" style="background:#8e44ad;color:#fff">소비기임박</span>'
+    };
+
     container.innerHTML = `
       <table class="mini-table">
-        <thead><tr><th>품목명</th><th>잔량</th><th>단위</th><th>상태</th></tr></thead>
+        <thead><tr><th>품목명</th><th>현재재고</th><th>적정재고</th><th>상태</th></tr></thead>
         <tbody>
-          ${items.slice(0, 6).map(r => {
-            const low = r.balance <= 10;
-            return `
-              <tr>
-                <td>${r.name || '-'}</td>
-                <td><strong>${numFormat(r.balance, 1)}</strong></td>
-                <td>${r.unit || '-'}</td>
-                <td>${low ? '<span class="badge badge-danger">부족</span>' : '<span class="badge badge-success">정상</span>'}</td>
-              </tr>
-            `;
-          }).join('')}
+          ${stockAlerts.slice(0, 8).map(r => `
+            <tr>
+              <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${r.name}</td>
+              <td style="text-align:right"><strong>${numFormat(r.stock, 0)}</strong></td>
+              <td style="text-align:right;color:#888">${r.minStock > 0 ? numFormat(r.minStock, 0) : '-'}</td>
+              <td>${badgeMap[r.status] || ''}</td>
+            </tr>
+          `).join('')}
         </tbody>
       </table>
+      ${stockAlerts.length > 8 ? `<div style="font-size:11px;color:#888;text-align:right;margin-top:4px">외 ${stockAlerts.length - 8}건 더 있음</div>` : ''}
     `;
   } catch (e) {
+    console.error('[stockAlert]', e);
     container.innerHTML = '<div class="empty-msg">데이터 로드 실패</div>';
   }
 }

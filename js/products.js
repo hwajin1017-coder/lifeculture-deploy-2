@@ -379,6 +379,7 @@ function openEditModal(id) {
     lotAbbrev: p.lot_abbrev,
     qtyPerBox: p.qty_per_box || '',
     boxesPerPallet: p.boxes_per_pallet || '',
+    minStock: p.min_stock || '',
   };
   Object.entries(fields).forEach(([id, val]) => {
     const el = document.getElementById(id);
@@ -483,6 +484,7 @@ async function handleSubmit(e) {
     spec_code: (document.getElementById('specCode')?.value || '').trim().toUpperCase(),
     qty_per_box: parseInt(document.getElementById('qtyPerBox')?.value) || 0,
     boxes_per_pallet: parseInt(document.getElementById('boxesPerPallet')?.value) || 0,
+    min_stock: parseInt(document.getElementById('minStock')?.value) || 0,
     documents: docsJson,
     updated_at: Date.now()
   };
