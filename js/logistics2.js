@@ -1883,17 +1883,7 @@ function lg2AuditParseExcel(file) {
       if (!parsed.length) { showToast('업로드할 데이터가 없습니다.', 'warning'); return; }
 
       _lg2AuditPendingRows = parsed;
-
-      // 미리보기 렌더링
-      var tbody = document.getElementById('lg2AuditPreviewBody');
-      if (tbody) {
-        tbody.innerHTML = parsed.map(function(r) {
-          var whLabel = r.warehouse === 'C' ? '❄️ 저온(C)' : '🏭 일반(W)';
-          return '<tr><td>' + (r.date || '') + '</td><td>' + lg2esc(r.item_name) + '</td><td>' + whLabel + '</td><td style="text-align:right">' + r.actual_qty.toLocaleString() + '</td><td>' + (r.expiry || '') + '</td></tr>';
-        }).join('');
-      }
-      var titleEl = document.getElementById('lg2AuditPreviewTitle');
-      if (titleEl) titleEl.textContent = '미리보기 — ' + parsed.length + '건 (저장 버튼을 눌러 확정)';
+      lg2AuditRenderPreview();
       var preview = document.getElementById('lg2AuditUploadPreview');
       if (preview) preview.style.display = 'block';
 
@@ -1968,4 +1958,66 @@ function lg2AuditCancelUpload() {
   if (preview) preview.style.display = 'none';
   var fileInput = document.getElementById('lg2AuditFileInput');
   if (fileInput) fileInput.value = '';
+}
+
+// 미리보기 테이블 렌더링 (인라인 편집 가능)
+function lg2AuditRenderPreview() {
+  var tbody = document.getElementById('lg2AuditPreviewBody');
+  var titleEl = document.getElementById('lg2AuditPreviewTitle');
+  if (!tbody) return;
+  var todayStr = new Date().toISOString().split('T')[0];
+  tbody.innerHTML = _lg2AuditPendingRows.map(function(r, idx) {
+    return '<tr id="lg2AuditRow_' + idx + '">' +
+      '<td><input type="date" value="' + (r.date || todayStr) + '" style="border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:12px;width:120px" onchange="lg2AuditRowChange(' + idx + ',\'date\',this.value)" /></td>' +
+      '<td><input type="text" value="' + lg2esc(r.item_name) + '" style="border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:12px;width:180px" onchange="lg2AuditRowChange(' + idx + ',\'item_name\',this.value)" /></td>' +
+      '<td><select style="border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:12px" onchange="lg2AuditRowChange(' + idx + ',\'warehouse\',this.value)">' +
+        '<option value="W"' + (r.warehouse !== 'C' ? ' selected' : '') + '>🏭 일반(W)</option>' +
+        '<option value="C"' + (r.warehouse === 'C' ? ' selected' : '') + '>❄️ 저온(C)</option>' +
+      '</select></td>' +
+      '<td style="text-align:right"><input type="number" value="' + (r.actual_qty || 0) + '" min="0" style="border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:12px;width:80px;text-align:right" onchange="lg2AuditRowChange(' + idx + ',\'actual_qty\',this.value)" /></td>' +
+      '<td><input type="date" value="' + (r.expiry || '') + '" style="border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:12px;width:120px" onchange="lg2AuditRowChange(' + idx + ',\'expiry\',this.value)" /></td>' +
+      '<td style="text-align:center"><button onclick="lg2AuditDeleteRow(' + idx + ')" style="padding:3px 8px;background:#e74c3c;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer" title="이 행 삭제"><i class="fas fa-trash"></i></button></td>' +
+    '</tr>';
+  }).join('');
+  if (titleEl) titleEl.textContent = '미리보기 — ' + _lg2AuditPendingRows.length + '건 (수정 후 저장 버튼을 눌러 확정)';
+}
+
+// 행 데이터 변경
+function lg2AuditRowChange(idx, field, value) {
+  if (!_lg2AuditPendingRows[idx]) return;
+  if (field === 'actual_qty') {
+    _lg2AuditPendingRows[idx][field] = Number(value) || 0;
+  } else {
+    _lg2AuditPendingRows[idx][field] = value;
+  }
+}
+
+// 행 삭제
+function lg2AuditDeleteRow(idx) {
+  _lg2AuditPendingRows.splice(idx, 1);
+  lg2AuditRenderPreview();
+  if (_lg2AuditPendingRows.length === 0) {
+    var preview = document.getElementById('lg2AuditUploadPreview');
+    if (preview) preview.style.display = 'none';
+  }
+}
+
+// 행 추가
+function lg2AuditAddRow() {
+  var todayStr = new Date().toISOString().split('T')[0];
+  _lg2AuditPendingRows.push({ date: todayStr, item_name: '', warehouse: 'W', actual_qty: 0, expiry: '' });
+  lg2AuditRenderPreview();
+  // 새 행으로 스크롤
+  var container = document.querySelector('#lg2AuditUploadPreview .data-table');
+  if (container) {
+    var scrollEl = container.closest('div[style*="overflow-y"]');
+    if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+  }
+  // 새 행 품목명 입력에 포커스
+  var newIdx = _lg2AuditPendingRows.length - 1;
+  var newRow = document.getElementById('lg2AuditRow_' + newIdx);
+  if (newRow) {
+    var input = newRow.querySelector('input[type="text"]');
+    if (input) { input.focus(); input.select(); }
+  }
 }

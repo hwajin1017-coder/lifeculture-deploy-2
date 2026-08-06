@@ -359,16 +359,17 @@
             </div>
             <input type="file" id="lg2AuditFileInput" accept=".xlsx,.xls" style="display:none" onchange="lg2AuditHandleFileInput(this)" />
             <div id="lg2AuditUploadPreview" style="display:none;margin-top:14px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
                 <span id="lg2AuditPreviewTitle" style="font-size:13px;font-weight:700;color:#1e8449"></span>
-                <div style="display:flex;gap:8px">
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button onclick="lg2AuditAddRow()" style="padding:7px 14px;background:#2980b9;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer"><i class="fas fa-plus"></i> 행 추가</button>
                   <button onclick="lg2AuditConfirmUpload()" style="padding:7px 18px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"><i class="fas fa-save"></i> 저장</button>
                   <button onclick="lg2AuditCancelUpload()" style="padding:7px 14px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer"><i class="fas fa-times"></i> 취소</button>
                 </div>
               </div>
-              <div style="overflow-x:auto;max-height:300px;overflow-y:auto">
+              <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
                 <table class="data-table" id="lg2AuditPreviewTable">
-                  <thead><tr><th>실사일</th><th>품목명</th><th>창고</th><th style="text-align:right">실재고량</th><th>소비기한</th></tr></thead>
+                  <thead><tr><th>실사일</th><th>품목명</th><th>창고</th><th style="text-align:right">실재고량</th><th>소비기한</th><th style="text-align:center">관리</th></tr></thead>
                   <tbody id="lg2AuditPreviewBody"></tbody>
                 </table>
               </div>
