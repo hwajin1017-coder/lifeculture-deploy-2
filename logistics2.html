@@ -337,49 +337,42 @@
           </table>
         </div>
 
-        <!-- ===== 전체 실사 모드 ===== -->
-        <div id="lg2FullAuditSection" style="margin-top:24px;border:2px solid #8e44ad;border-radius:14px;overflow:hidden">
-          <!-- 헤더 -->
-          <div style="background:linear-gradient(135deg,#8e44ad,#6c3483);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <!-- ===== 엑셀 일괄 실사 업로드 ===== -->
+        <div id="lg2AuditExcelSection" style="margin-top:24px;border:2px solid #27ae60;border-radius:14px;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#27ae60,#1e8449);padding:14px 20px;display:flex;align-items:center;gap:10px">
+            <i class="fas fa-file-excel" style="color:#fff;font-size:18px"></i>
             <div style="color:#fff">
-              <div style="font-size:15px;font-weight:700"><i class="fas fa-th"></i> 전체 실사 모드</div>
-              <div style="font-size:12px;opacity:0.85;margin-top:3px">창고 전체 품목의 실재고를 한 번에 확인하고 수정합니다.</div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span id="lg2FullAuditStatus" style="font-size:12px;color:#f8c471;font-weight:600"><i class="fas fa-lock"></i> 관리자 허가 필요</span>
-              <button id="lg2FullAuditApproveBtn" onclick="lg2RequestFullAuditApproval()" style="padding:8px 16px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"><i class="fas fa-key"></i> 관리자 허가</button>
-              <button id="lg2FullAuditSaveBtn" onclick="lg2SaveFullAudit()" style="padding:8px 16px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:none"><i class="fas fa-save"></i> 실사 저장</button>
-              <button id="lg2FullAuditLockBtn" onclick="lg2LockFullAudit()" style="padding:8px 16px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:none"><i class="fas fa-lock"></i> 잠금</button>
+              <div style="font-size:14px;font-weight:700">엑셀 파일로 실사 일괄 등록</div>
+              <div style="font-size:11px;opacity:0.85;margin-top:2px">실사일 · 품목명 · 창고 · 실재고량 · 소비기한 컬럼이 포함된 엑셀 파일을 드래그&드롭 또는 클릭하여 업로드하세요.</div>
             </div>
           </div>
-          <!-- 컨트롤 바 -->
-          <div id="lg2FullAuditControls" style="background:#f9f0ff;border-bottom:1px solid #e0c8f0;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <div style="display:flex;gap:6px">
-              <button onclick="lg2FullAuditSetWarehouse('W')" id="lg2FullWh_W" style="padding:6px 14px;border-radius:20px;border:1.5px solid #8e44ad;background:#8e44ad;color:#fff;font-size:12px;font-weight:700;cursor:pointer">🏭 일반창고(W)</button>
-              <button onclick="lg2FullAuditSetWarehouse('C')" id="lg2FullWh_C" style="padding:6px 14px;border-radius:20px;border:1.5px solid #ddd;background:#fff;color:#555;font-size:12px;font-weight:700;cursor:pointer">❄️ 저온창고(C)</button>
+          <div style="padding:16px;background:#f0faf4">
+            <div id="lg2AuditDropZone"
+              ondragover="lg2AuditDragOver(event)"
+              ondragleave="lg2AuditDragLeave(event)"
+              ondrop="lg2AuditDropFile(event)"
+              onclick="document.getElementById('lg2AuditFileInput').click()"
+              style="border:2px dashed #27ae60;border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:#fff;transition:background 0.2s">
+              <div style="font-size:36px;margin-bottom:8px">📂</div>
+              <div style="font-size:14px;font-weight:600;color:#27ae60">엑셀 파일을 여기에 드래그하거나 클릭하여 선택</div>
+              <div style="font-size:12px;color:#888;margin-top:6px">.xlsx / .xls 파일 지원 · 헤더: 실사일, 품목명, 창고, 실재고량, 소비기한</div>
             </div>
-            <input type="text" id="lg2FullAuditSearch" placeholder="품목명 검색..." oninput="lg2FilterFullAuditGrid()" style="padding:6px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:12px;flex:1;min-width:160px" />
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer;white-space:nowrap">
-              <input type="checkbox" id="lg2FullShowDiffOnly" onchange="lg2FilterFullAuditGrid()" style="cursor:pointer" />
-              차이 있는 항목만
-            </label>
-            <div style="display:flex;align-items:center;gap:6px">
-              <label style="font-size:12px;color:#555;white-space:nowrap">실사일자</label>
-              <input type="date" id="lg2FullAuditDate" style="padding:6px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:12px" />
+            <input type="file" id="lg2AuditFileInput" accept=".xlsx,.xls" style="display:none" onchange="lg2AuditHandleFileInput(this)" />
+            <div id="lg2AuditUploadPreview" style="display:none;margin-top:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span id="lg2AuditPreviewTitle" style="font-size:13px;font-weight:700;color:#1e8449"></span>
+                <div style="display:flex;gap:8px">
+                  <button onclick="lg2AuditConfirmUpload()" style="padding:7px 18px;background:#27ae60;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer"><i class="fas fa-save"></i> 저장</button>
+                  <button onclick="lg2AuditCancelUpload()" style="padding:7px 14px;background:#e74c3c;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer"><i class="fas fa-times"></i> 취소</button>
+                </div>
+              </div>
+              <div style="overflow-x:auto;max-height:300px;overflow-y:auto">
+                <table class="data-table" id="lg2AuditPreviewTable">
+                  <thead><tr><th>실사일</th><th>품목명</th><th>창고</th><th style="text-align:right">실재고량</th><th>소비기한</th></tr></thead>
+                  <tbody id="lg2AuditPreviewBody"></tbody>
+                </table>
+              </div>
             </div>
-            <button onclick="lg2OpenFullAuditAddModal()" id="lg2FullAuditAddBtn" style="padding:6px 14px;background:#8e44ad;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:none"><i class="fas fa-plus"></i> 제품 추가</button>
-          </div>
-          <!-- 잠금 안내 오버레이 -->
-          <div id="lg2FullAuditLockOverlay" style="background:#f9f0ff;padding:32px;text-align:center">
-            <div style="font-size:40px;margin-bottom:12px">🔒</div>
-            <div style="font-size:15px;font-weight:700;color:#6c3483;margin-bottom:8px">관리자 허가가 필요합니다</div>
-            <div style="font-size:13px;color:#888;margin-bottom:16px">관리자가 허가를 부여해야 전체 실사 모드를 사용할 수 있습니다.<br>위의 <b>관리자 허가</b> 버튼을 눌러 관리자 비밀번호를 입력하세요.</div>
-            <div style="font-size:12px;color:#aaa">관리자(admin) 계정으로 로그인하면 즉시 사용 가능합니다.</div>
-          </div>
-          <!-- 그리드 영역 -->
-          <div id="lg2FullAuditGrid" style="display:none;padding:16px;background:#fafafa">
-            <div id="lg2FullAuditGridInner" style="display:flex;flex-direction:column;gap:10px"></div>
-            <div id="lg2FullAuditEmpty" style="display:none;text-align:center;color:#aaa;padding:40px;font-size:14px">표시할 항목이 없습니다.</div>
           </div>
         </div>
       </div>
@@ -748,58 +741,6 @@
     <div class="pwa-banner-actions">
       <button class="pwa-install-btn" onclick="installPwa()">설치</button>
       <button class="pwa-dismiss-btn" onclick="dismissPwaBanner()">닫기</button>
-    </div>
-  </div>
-
-  <!-- 전체 실사 모드 제품 추가 모달 -->
-  <div id="lg2FullAuditAddModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;align-items:center;justify-content:center">
-    <div style="background:#fff;border-radius:14px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
-      <div style="background:linear-gradient(135deg,#8e44ad,#6c3483);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:14px 14px 0 0">
-        <div style="color:#fff;font-weight:700;font-size:14px"><i class="fas fa-plus-circle"></i> 실사 제품 추가</div>
-        <button onclick="lg2CloseFullAuditAddModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:0.7">&times;</button>
-      </div>
-      <div style="padding:20px">
-        <div style="font-size:12px;color:#888;margin-bottom:16px;padding:8px 12px;background:#f9f0ff;border-radius:8px;border-left:3px solid #8e44ad">
-          실사 그리드에 없는 제품을 추가하거나, 새 소비기한 행을 추가합니다.
-        </div>
-        <!-- 창고 -->
-        <div style="margin-bottom:14px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:6px">창고 <span style="color:#e74c3c">*</span></label>
-          <div style="display:flex;gap:8px">
-            <button type="button" id="lg2FaAddWh_W" onclick="lg2FaAddSelectWh('W')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #8e44ad;background:#8e44ad;color:#fff;font-size:12px;font-weight:700;cursor:pointer">🏭 일반창고(W)</button>
-            <button type="button" id="lg2FaAddWh_C" onclick="lg2FaAddSelectWh('C')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;background:#fff;color:#555;font-size:12px;font-weight:700;cursor:pointer">❄️ 저온창고(C)</button>
-          </div>
-          <input type="hidden" id="lg2FaAddWhVal" value="W" />
-        </div>
-        <!-- 품목명 -->
-        <div style="margin-bottom:14px;position:relative">
-          <label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:6px">품목명 <span style="color:#e74c3c">*</span></label>
-          <input type="text" id="lg2FaAddItem" placeholder="품목명 입력 또는 선택" oninput="lg2FaAddAutocomplete()" autocomplete="off"
-            style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" />
-          <div id="lg2FaAddItemList" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #8e44ad;border-radius:0 0 8px 8px;max-height:160px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
-        </div>
-        <!-- 입고일 -->
-        <div style="margin-bottom:14px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:6px">입고일 <span style="color:#e74c3c">*</span></label>
-          <input type="date" id="lg2FaAddDate" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" />
-        </div>
-        <!-- 소비기한 -->
-        <div style="margin-bottom:14px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:6px">소비기한</label>
-          <input type="date" id="lg2FaAddExpiry" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" />
-          <div style="font-size:11px;color:#aaa;margin-top:4px">소비기한이 없는 경우 비워두세요.</div>
-        </div>
-        <!-- 실사수량 -->
-        <div style="margin-bottom:20px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:6px">실사수량(ea) <span style="color:#e74c3c">*</span></label>
-          <input type="number" id="lg2FaAddQty" min="0" placeholder="0" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" />
-        </div>
-        <div id="lg2FaAddError" style="display:none;color:#e74c3c;font-size:12px;margin-bottom:12px;padding:8px;background:#fdedec;border-radius:6px"></div>
-        <div style="display:flex;gap:8px">
-          <button onclick="lg2CloseFullAuditAddModal()" style="flex:1;padding:10px;background:#f8f9fa;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px">취소</button>
-          <button onclick="lg2ConfirmFullAuditAdd()" style="flex:1;padding:10px;background:#8e44ad;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700"><i class="fas fa-plus"></i> 추가</button>
-        </div>
-      </div>
     </div>
   </div>
 

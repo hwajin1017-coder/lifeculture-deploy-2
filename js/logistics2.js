@@ -1721,558 +1721,6 @@ function lg2DownloadOutboundTemplate() {
 
 
 // ══════════════════════════════════════════════════════════════════
-// 전체 실사 모드 (Full Audit Mode)
-// ══════════════════════════════════════════════════════════════════
-var _lg2FullAuditUnlocked  = false;
-var _lg2FullAuditWarehouse = 'W'; // 현재 선택 창고 ('W' or 'C')
-var _lg2FullAuditPending   = {};  // 재렌더링 중 입력값 임시 보존 { safeId: value }
-
-// ── 관리자 허가 요청 ──────────────────────────────────────────────
-function lg2RequestFullAuditApproval() {
-  var user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
-  if (user && user.role === 'admin') {
-    lg2GrantFullAudit();
-    return;
-  }
-  var modalId = 'lg2FullApproveModal';
-  var existing = document.getElementById(modalId);
-  if (existing) existing.remove();
-  var m = document.createElement('div');
-  m.id = modalId;
-  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center';
-  m.innerHTML =
-    '<div style="background:#fff;border-radius:14px;padding:0;width:360px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);overflow:hidden">' +
-      '<div style="background:linear-gradient(135deg,#8e44ad,#6c3483);padding:16px 20px;display:flex;align-items:center;justify-content:space-between">' +
-        '<div style="color:#fff;font-weight:700;font-size:14px"><i class="fas fa-key"></i> 관리자 허가</div>' +
-        '<button onclick="document.getElementById(\'' + modalId + '\').remove()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:0.7">&times;</button>' +
-      '</div>' +
-      '<div style="padding:20px">' +
-        '<div style="font-size:13px;color:#555;margin-bottom:16px">전체 실사 모드를 활성화하려면<br>관리자 비밀번호를 입력하세요.</div>' +
-        '<div style="margin-bottom:12px">' +
-          '<label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:5px">관리자 이메일</label>' +
-          '<input type="email" id="lg2ApproveEmail" placeholder="admin@lifeculture.co.kr" value="admin@lifeculture.co.kr" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" />' +
-        '</div>' +
-        '<div style="margin-bottom:16px">' +
-          '<label style="display:block;font-size:11px;font-weight:700;color:#555;margin-bottom:5px">관리자 비밀번호 <span style="color:#e74c3c">*</span></label>' +
-          '<input type="password" id="lg2ApprovePassword" placeholder="비밀번호 입력" style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box" onkeydown="if(event.key===\'Enter\')lg2VerifyAdminApproval()" autofocus />' +
-        '</div>' +
-        '<div id="lg2ApproveError" style="display:none;color:#e74c3c;font-size:12px;margin-bottom:10px;padding:8px;background:#fdedec;border-radius:6px"></div>' +
-        '<div style="display:flex;gap:8px">' +
-          '<button onclick="document.getElementById(\'' + modalId + '\').remove()" style="flex:1;padding:10px;background:#f8f9fa;color:#555;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px">취소</button>' +
-          '<button onclick="lg2VerifyAdminApproval()" style="flex:1;padding:10px;background:#8e44ad;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700"><i class="fas fa-unlock"></i> 허가</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(m);
-  setTimeout(function() {
-    var pw = document.getElementById('lg2ApprovePassword');
-    if (pw) pw.focus();
-  }, 100);
-}
-
-function lg2VerifyAdminApproval() {
-  var emailEl = document.getElementById('lg2ApproveEmail');
-  var pwEl    = document.getElementById('lg2ApprovePassword');
-  var errEl   = document.getElementById('lg2ApproveError');
-  if (!pwEl) return;
-  var email    = (emailEl ? emailEl.value : 'admin@lifeculture.co.kr').trim();
-  var password = pwEl.value;
-  var USERS_KEY = 'lc_users';
-  var users = [];
-  try { users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch(e) {}
-  if (users.length === 0 && typeof DEFAULT_USERS !== 'undefined') users = DEFAULT_USERS;
-  var adminUser = users.find(function(u) {
-    return u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.role === 'admin' && u.active;
-  });
-  if (!adminUser) {
-    if (errEl) { errEl.textContent = '관리자 이메일 또는 비밀번호가 올바르지 않습니다.'; errEl.style.display = 'block'; }
-    if (pwEl)  { pwEl.value = ''; pwEl.focus(); }
-    return;
-  }
-  var modal = document.getElementById('lg2FullApproveModal');
-  if (modal) modal.remove();
-  lg2GrantFullAudit();
-}
-
-async function lg2GrantFullAudit() {
-  _lg2FullAuditUnlocked = true;
-  var statusEl    = document.getElementById('lg2FullAuditStatus');
-  var approveBtn  = document.getElementById('lg2FullAuditApproveBtn');
-  var saveBtn     = document.getElementById('lg2FullAuditSaveBtn');
-  var lockBtn     = document.getElementById('lg2FullAuditLockBtn');
-  var overlay     = document.getElementById('lg2FullAuditLockOverlay');
-  var grid        = document.getElementById('lg2FullAuditGrid');
-  var dateEl      = document.getElementById('lg2FullAuditDate');
-  var addBtn = document.getElementById('lg2FullAuditAddBtn');
-  if (statusEl)   statusEl.innerHTML = '<i class="fas fa-unlock" style="color:#2ecc71"></i> <span style="color:#2ecc71">허가됨 — 실사 모드 활성</span>';
-  if (approveBtn) approveBtn.style.display = 'none';
-  if (saveBtn)    saveBtn.style.display = '';
-  if (lockBtn)    lockBtn.style.display = '';
-  if (addBtn)     addBtn.style.display = '';
-  if (overlay)    overlay.style.display = 'none';
-  if (grid)       grid.style.display = '';
-  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
-  showToast('실사 모드 데이터 로딩 중...', 'info');
-  // 최신 데이터 재로드
-  try {
-    var results = await Promise.all([
-      apiGetAll('lg2_inbound'),
-      apiGetAll('lg2_outbound'),
-      apiGetAll('lg2_audit')
-    ]);
-    _lg2InboundData  = results[0] || [];
-    _lg2OutboundData = results[1] || [];
-    _lg2AuditData    = results[2] || [];
-  } catch(e) { console.warn('lg2 데이터 재로드 실패:', e); }
-  lg2RenderFullAuditGrid();
-  showToast('전체 실사 모드가 활성화되었습니다.', 'success');
-}
-
-function lg2LockFullAudit() {
-  if (!confirm('실사 모드를 잠금하시겠습니까?\n저장하지 않은 수정 내용은 사라집니다.')) return;
-  _lg2FullAuditUnlocked = false;
-  _lg2FullAuditPending  = {};
-  var statusEl   = document.getElementById('lg2FullAuditStatus');
-  var approveBtn = document.getElementById('lg2FullAuditApproveBtn');
-  var saveBtn    = document.getElementById('lg2FullAuditSaveBtn');
-  var lockBtn    = document.getElementById('lg2FullAuditLockBtn');
-  var overlay    = document.getElementById('lg2FullAuditLockOverlay');
-  var grid       = document.getElementById('lg2FullAuditGrid');
-  var addBtn2 = document.getElementById('lg2FullAuditAddBtn');
-  if (statusEl)   statusEl.innerHTML = '<i class="fas fa-lock"></i> 관리자 허가 필요';
-  if (approveBtn) approveBtn.style.display = '';
-  if (saveBtn)    saveBtn.style.display = 'none';
-  if (lockBtn)    lockBtn.style.display = 'none';
-  if (addBtn2)    addBtn2.style.display = 'none';
-  if (overlay)    overlay.style.display = '';
-  if (grid)       grid.style.display = 'none';
-  showToast('실사 모드가 잠금되었습니다.', 'info');
-}
-
-// ── 창고 전환 ────────────────────────────────────────────────────
-function lg2FullAuditSetWarehouse(wh) {
-  _lg2FullAuditWarehouse = wh;
-  var btnW = document.getElementById('lg2FullWh_W');
-  var btnC = document.getElementById('lg2FullWh_C');
-  if (btnW) {
-    if (wh === 'W') {
-      btnW.style.background = '#8e44ad'; btnW.style.color = '#fff'; btnW.style.borderColor = '#8e44ad';
-    } else {
-      btnW.style.background = '#fff'; btnW.style.color = '#555'; btnW.style.borderColor = '#ddd';
-    }
-  }
-  if (btnC) {
-    if (wh === 'C') {
-      btnC.style.background = '#8e44ad'; btnC.style.color = '#fff'; btnC.style.borderColor = '#8e44ad';
-    } else {
-      btnC.style.background = '#fff'; btnC.style.color = '#555'; btnC.style.borderColor = '#ddd';
-    }
-  }
-  if (_lg2FullAuditUnlocked) lg2RenderFullAuditGrid();
-}
-
-// ── 그리드 렌더링 ─────────────────────────────────────────────────
-function lg2RenderFullAuditGrid() {
-  var inner   = document.getElementById('lg2FullAuditGridInner');
-  var emptyEl = document.getElementById('lg2FullAuditEmpty');
-  if (!inner) return;
-
-  // 재렌더링 전 입력값 보존
-  inner.querySelectorAll('input[type="number"][data-item]').forEach(function(inp) {
-    if (inp.value !== '') _lg2FullAuditPending[inp.id] = inp.value;
-  });
-
-  // 현재 창고의 품목 목록 (입고 기준)
-  var wh = _lg2FullAuditWarehouse;
-  var itemMap = {};
-  _lg2InboundData.forEach(function(r) {
-    if (r.warehouse !== wh) return;
-    var name = (r.item_name || '').trim();
-    if (!name) return;
-    if (!itemMap[name]) itemMap[name] = { name: name, fifo: [] };
-  });
-
-  // FIFO 재고 계산
-  Object.keys(itemMap).forEach(function(name) {
-    itemMap[name].fifo = lg2GetFifoStock(name, wh);
-  });
-
-  var items = Object.values(itemMap).sort(function(a, b) { return a.name.localeCompare(b.name); });
-
-  if (!items.length) {
-    inner.innerHTML = '';
-    if (emptyEl) emptyEl.style.display = '';
-    return;
-  }
-  if (emptyEl) emptyEl.style.display = 'none';
-
-  inner.innerHTML = '';
-  items.forEach(function(item) {
-    var card = lg2CreateFullAuditCard(item.name, item.fifo, wh);
-    inner.appendChild(card);
-  });
-
-  // 보존된 입력값 복원
-  Object.keys(_lg2FullAuditPending).forEach(function(inputId) {
-    var el = document.getElementById(inputId);
-    if (el && el.value === '') {
-      el.value = _lg2FullAuditPending[inputId];
-      lg2FullAuditCalcDiff(el);
-    }
-  });
-
-  lg2FilterFullAuditGrid();
-}
-
-// ── 품목 카드 생성 ────────────────────────────────────────────────
-function lg2CreateFullAuditCard(itemName, fifoRows, wh) {
-  var safeId  = itemName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
-  var whLabel = wh === 'W' ? '🏭 일반창고' : '❄️ 저온창고';
-
-  var card = document.createElement('div');
-  card.className = 'lg2-full-audit-card';
-  card.dataset.itemName = itemName;
-  card.style.cssText = 'border:1.5px solid #8e44ad;border-radius:10px;padding:12px 14px;background:#fdf5ff;transition:all 0.15s';
-
-  // 헤더 (전산재고 표시 제거)
-  var headerHtml =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
-      '<div>' +
-        '<div style="font-size:13px;font-weight:700;color:#6c3483">' + lg2esc(itemName) + '</div>' +
-        '<div style="font-size:11px;color:#888;margin-top:2px">' + whLabel + '</div>' +
-      '</div>' +
-    '</div>';
-
-  // 소비기한별 행 (전산재고·차이 컬럼 제거, 실사수량만)
-  var rowsHtml = '';
-  if (fifoRows.length === 0) {
-    // 입고 내역 없어도 소비기한 미지정 행 하나 제공
-    rowsHtml =
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee;flex-wrap:wrap">' +
-        '<div style="flex:1;min-width:120px">' +
-          '<div style="font-size:11px;color:#888">소비기한</div>' +
-          '<div style="font-size:12px;font-weight:700;color:#555">소비기한 미지정</div>' +
-        '</div>' +
-        '<div style="min-width:110px">' +
-          '<div style="font-size:11px;color:#888;margin-bottom:3px">실사수량(ea)</div>' +
-          '<input type="number" id="lg2fa_' + safeId + '_0" min="0" placeholder="0" ' +
-            'data-item="' + lg2esc(itemName) + '" ' +
-            'data-expiry="" ' +
-            'data-wh="' + wh + '" ' +
-            'data-sys="0" ' +
-            'style="width:90px;padding:6px 8px;border:1.5px solid #8e44ad;border-radius:6px;font-size:14px;text-align:right;font-weight:700" />' +
-        '</div>' +
-      '</div>';
-  } else {
-    fifoRows.forEach(function(f, idx) {
-      var rowSafeId = safeId + '_' + idx;
-      var expLabel  = f.expiry ? f.expiry : '소비기한 미지정';
-      rowsHtml +=
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee;flex-wrap:wrap">' +
-          '<div style="flex:1;min-width:120px">' +
-            '<div style="font-size:11px;color:#888">소비기한</div>' +
-            '<div style="font-size:12px;font-weight:700;color:#555">' + lg2esc(expLabel) + '</div>' +
-          '</div>' +
-          '<div style="min-width:110px">' +
-            '<div style="font-size:11px;color:#888;margin-bottom:3px">실사수량(ea)</div>' +
-            '<input type="number" id="lg2fa_' + rowSafeId + '" min="0" placeholder="0" ' +
-              'data-item="' + lg2esc(itemName) + '" ' +
-              'data-expiry="' + lg2esc(f.expiry || '') + '" ' +
-              'data-wh="' + wh + '" ' +
-              'data-sys="0" ' +
-              'style="width:90px;padding:6px 8px;border:1.5px solid #8e44ad;border-radius:6px;font-size:14px;text-align:right;font-weight:700" />' +
-          '</div>' +
-        '</div>';
-    });
-  }
-
-  card.innerHTML = headerHtml + rowsHtml;
-  return card;
-}
-
-// ── 차이 계산 표시 ────────────────────────────────────────────────
-function lg2FullAuditCalcDiff(input) {
-  var sys    = Number(input.dataset.sys) || 0;
-  var actual = input.value !== '' ? Number(input.value) : null;
-  var diffId = input.id.replace('lg2fa_', 'lg2fa_diff_');
-  var diffEl = document.getElementById(diffId);
-  if (!diffEl) return;
-  if (actual === null) { diffEl.textContent = '-'; diffEl.style.color = '#aaa'; return; }
-  var diff = actual - sys;
-  diffEl.textContent = (diff >= 0 ? '+' : '') + diff.toLocaleString();
-  diffEl.style.color = diff > 0 ? '#27ae60' : (diff < 0 ? '#e74c3c' : '#aaa');
-  // 카드 테두리 강조
-  var card = input.closest('.lg2-full-audit-card');
-  if (card && diff !== 0) { card.style.borderColor = '#e67e22'; card.style.background = '#fffbf0'; }
-}
-
-// ══════════════════════════════════════════════════════════════════
-// 전체 실사 모드 — 제품 추가 모달
-// ══════════════════════════════════════════════════════════════════
-function lg2OpenFullAuditAddModal() {
-  if (!_lg2FullAuditUnlocked) { showToast('관리자 허가가 필요합니다.', 'warning'); return; }
-  var modal = document.getElementById('lg2FullAuditAddModal');
-  if (!modal) return;
-  // 기본값 설정
-  var today = new Date().toISOString().split('T')[0];
-  var dateEl = document.getElementById('lg2FaAddDate');
-  if (dateEl) dateEl.value = today;
-  var itemEl = document.getElementById('lg2FaAddItem');
-  if (itemEl) itemEl.value = '';
-  var expiryEl = document.getElementById('lg2FaAddExpiry');
-  if (expiryEl) expiryEl.value = '';
-  var qtyEl = document.getElementById('lg2FaAddQty');
-  if (qtyEl) qtyEl.value = '';
-  var errEl = document.getElementById('lg2FaAddError');
-  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-  // 창고 기본값 = 현재 실사 창고
-  lg2FaAddSelectWh(_lg2FullAuditWarehouse || 'W');
-  modal.style.display = 'flex';
-  setTimeout(function() { if (itemEl) itemEl.focus(); }, 100);
-}
-
-function lg2CloseFullAuditAddModal() {
-  var modal = document.getElementById('lg2FullAuditAddModal');
-  if (modal) modal.style.display = 'none';
-  var list = document.getElementById('lg2FaAddItemList');
-  if (list) list.style.display = 'none';
-}
-
-function lg2FaAddSelectWh(wh) {
-  var whVal = document.getElementById('lg2FaAddWhVal');
-  var btnW  = document.getElementById('lg2FaAddWh_W');
-  var btnC  = document.getElementById('lg2FaAddWh_C');
-  if (whVal) whVal.value = wh;
-  if (btnW) {
-    if (wh === 'W') { btnW.style.background = '#8e44ad'; btnW.style.color = '#fff'; btnW.style.borderColor = '#8e44ad'; }
-    else            { btnW.style.background = '#fff';    btnW.style.color = '#555'; btnW.style.borderColor = '#ddd'; }
-  }
-  if (btnC) {
-    if (wh === 'C') { btnC.style.background = '#8e44ad'; btnC.style.color = '#fff'; btnC.style.borderColor = '#8e44ad'; }
-    else            { btnC.style.background = '#fff';    btnC.style.color = '#555'; btnC.style.borderColor = '#ddd'; }
-  }
-}
-
-function lg2FaAddAutocomplete() {
-  var input = document.getElementById('lg2FaAddItem');
-  var list  = document.getElementById('lg2FaAddItemList');
-  if (!input || !list) return;
-  var q = input.value.trim().toLowerCase();
-  list.innerHTML = '';
-  if (!q || !_lg2ProductCache) { list.style.display = 'none'; return; }
-  var matches = _lg2ProductCache.filter(function(p) {
-    return (p.product_name || '').toLowerCase().includes(q);
-  }).slice(0, 15);
-  if (!matches.length) { list.style.display = 'none'; return; }
-  matches.forEach(function(p) {
-    var div = document.createElement('div');
-    div.textContent = p.product_name;
-    div.style.cssText = 'padding:8px 12px;cursor:pointer;font-size:13px';
-    div.addEventListener('mousedown', function(e) {
-      e.preventDefault();
-      input.value = p.product_name;
-      list.style.display = 'none';
-    });
-    div.addEventListener('mouseover', function() { div.style.background = '#f0f4ff'; });
-    div.addEventListener('mouseout',  function() { div.style.background = ''; });
-    list.appendChild(div);
-  });
-  list.style.display = 'block';
-}
-
-async function lg2ConfirmFullAuditAdd() {
-  var wh     = (document.getElementById('lg2FaAddWhVal')  || {}).value || 'W';
-  var item   = ((document.getElementById('lg2FaAddItem')  || {}).value || '').trim();
-  var date   = (document.getElementById('lg2FaAddDate')   || {}).value || '';
-  var expiry = (document.getElementById('lg2FaAddExpiry') || {}).value || '';
-  var qty    = parseInt((document.getElementById('lg2FaAddQty') || {}).value) || 0;
-  var errEl  = document.getElementById('lg2FaAddError');
-
-  // 유효성 검사
-  var errs = [];
-  if (!item)  errs.push('품목명을 입력하세요.');
-  if (!date)  errs.push('입고일을 입력하세요.');
-  if (qty < 0) errs.push('실사수량은 0 이상이어야 합니다.');
-  if (errs.length) {
-    if (errEl) { errEl.textContent = errs.join(' '); errEl.style.display = 'block'; }
-    return;
-  }
-  if (errEl) errEl.style.display = 'none';
-
-  // 1) 입고 레코드 저장 (입고관리에 반영)
-  try {
-    var user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
-    var userName = user ? (user.name || user.email) : '관리자';
-    await apiPost('lg2_inbound', {
-      date:       date,
-      warehouse:  wh,
-      item_name:  item,
-      qty_ea:     qty,
-      expiry:     expiry,
-      supplier:   '실사 추가',
-      manager:    userName,
-      memo:       '전체 실사 모드 제품 추가',
-      created_at: Date.now()
-    });
-    // 캐시 갱신
-    var fresh = await apiGetAll('lg2_inbound');
-    _lg2InboundData = fresh || [];
-  } catch(e) {
-    if (errEl) { errEl.textContent = '저장 오류: ' + e.message; errEl.style.display = 'block'; }
-    return;
-  }
-
-  showToast('제품이 추가되었습니다: ' + item + ' (' + qty + ' ea)', 'success');
-  lg2CloseFullAuditAddModal();
-
-  // 2) 실사 그리드 재렌더링 (추가된 품목 카드 반영)
-  lg2RenderFullAuditGrid();
-
-  // 3) 전체현황도 갱신
-  lg2RenderOverview();
-}
-
-// 모달 외부 클릭 시 닫기
-document.addEventListener('click', function(e) {
-  var modal = document.getElementById('lg2FullAuditAddModal');
-  if (modal && modal.style.display === 'flex' && e.target === modal) {
-    lg2CloseFullAuditAddModal();
-  }
-  var list = document.getElementById('lg2FaAddItemList');
-  var input = document.getElementById('lg2FaAddItem');
-  if (list && input && !list.contains(e.target) && e.target !== input) {
-    list.style.display = 'none';
-  }
-});
-
-// ── 필터링 ────────────────────────────────────────────────────────
-function lg2FilterFullAuditGrid() {
-  var inner      = document.getElementById('lg2FullAuditGridInner');
-  var emptyEl    = document.getElementById('lg2FullAuditEmpty');
-  if (!inner) return;
-  var q          = ((document.getElementById('lg2FullAuditSearch') || {}).value || '').trim().toLowerCase();
-  var diffOnly   = (document.getElementById('lg2FullShowDiffOnly') || {}).checked || false;
-  var cards      = inner.querySelectorAll('.lg2-full-audit-card');
-  var visible    = 0;
-  cards.forEach(function(card) {
-    var name = (card.dataset.itemName || '').toLowerCase();
-    var show = true;
-    if (q && !name.includes(q)) show = false;
-    if (diffOnly && show) {
-      var hasDiff = false;
-      card.querySelectorAll('input[type="number"]').forEach(function(inp) {
-        if (inp.value !== '') {
-          var sys = Number(inp.dataset.sys) || 0;
-          if (Number(inp.value) !== sys) hasDiff = true;
-        }
-      });
-      if (!hasDiff) show = false;
-    }
-    card.style.display = show ? '' : 'none';
-    if (show) visible++;
-  });
-  if (emptyEl) emptyEl.style.display = visible === 0 ? '' : 'none';
-}
-
-// ── 실사 저장 ─────────────────────────────────────────────────────
-async function lg2SaveFullAudit() {
-  if (!_lg2FullAuditUnlocked) { showToast('관리자 허가가 필요합니다.', 'warning'); return; }
-  var dateEl = document.getElementById('lg2FullAuditDate');
-  var date   = dateEl ? dateEl.value : new Date().toISOString().split('T')[0];
-  if (!date) { showToast('실사일자를 입력해주세요.', 'warning'); return; }
-
-  // 입력된 실재고 수집
-  var inputs  = document.querySelectorAll('#lg2FullAuditGridInner input[type="number"][data-item]');
-  var records = [];
-  inputs.forEach(function(inp) {
-    // 빈칸도 0으로 처리 (실사 대상 품목은 반드시 저장)
-    var actualQty = inp.value === '' ? 0 : (Number(inp.value) || 0);
-    records.push({
-      item_name:  inp.dataset.item,
-      warehouse:  inp.dataset.wh,
-      expiry:     inp.dataset.expiry || '',
-      sys_qty:    0,
-      actual_qty: actualQty,
-      diff:       actualQty,  // 전산재고 없이 실사수량 그대로
-      audit_date: date
-    });
-  });
-
-  if (!records.length) { showToast('실사 대상 품목이 없습니다. 먼저 실사 모드를 활성화하세요.', 'warning'); return; }
-  if (!confirm(records.length + '건의 실사 결과를 저장하시겠습니까?\n실사 수량이 재고 기준점이 됩니다.')) return;
-
-  showToast('실사 저장 중...', 'info');
-  try {
-    var user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
-    var userName = user ? (user.name || user.email) : '관리자';
-
-    // 실사 스냅샷만 저장 (재고조정 입출고 레코드 미생성)
-    // 전체현황 재고 = 실사 actual_qty + 기준일 이후 입고 - 기준일 이후 출고
-    for (var i = 0; i < records.length; i++) {
-      var rec  = records[i];
-      await apiPost('lg2_audit', {
-        date:        rec.audit_date,
-        warehouse:   rec.warehouse,
-        item_name:   rec.item_name,
-        expiry:      rec.expiry,
-        system_qty:  rec.sys_qty,
-        actual_qty:  rec.actual_qty,
-        diff_qty:    rec.diff,
-        manager:     userName,
-        memo:        '전체 실사 모드',
-        created_at:  Date.now()
-      });
-    }
-
-    showToast('전체 실사 저장 완료 (' + records.length + '건) — 실사 수량이 재고 기준점으로 설정되었습니다.', 'success');
-
-    // ★ 실사 기준일을 lg2_stocktake_config에 저장
-    try {
-      var existingConfigs = await apiGetAll('lg2_stocktake_config');
-      var prevConfig = (existingConfigs || []).sort(function(a,b){ return (b.updated_at||0)-(a.updated_at||0); })[0];
-      var configPayload = {
-        stocktake_base_date: date,
-        stocktake_records_count: records.length,
-        adj_created: adjCreated,
-        updated_at: Date.now(),
-        updated_by: userName
-      };
-      if (prevConfig && prevConfig.id) {
-        var prevId = prevConfig.id;
-        delete configPayload.id;
-        await apiPut('lg2_stocktake_config', prevId, configPayload);
-      } else {
-        await apiPost('lg2_stocktake_config', configPayload);
-      }
-      _lg2StocktakeBaseDate = date;
-      lg2UpdateStocktakeBaseBanner();
-    } catch(cfgErr) {
-      console.warn('lg2 실사 기준일 저장 실패:', cfgErr);
-    }
-
-    // 데이터 재로드 및 UI 갱신
-    _lg2FullAuditPending = {};
-    var results = await Promise.all([
-      apiGetAll('lg2_inbound'),
-      apiGetAll('lg2_outbound'),
-      apiGetAll('lg2_audit')
-    ]);
-    _lg2InboundData  = results[0] || [];
-    _lg2OutboundData = results[1] || [];
-    _lg2AuditData    = results[2] || [];
-
-    lg2RenderOverview();
-    lg2RenderInbound();
-    lg2RenderOutbound();
-    lg2RenderAudit();
-    lg2RenderFullAuditGrid();
-
-  } catch(e) {
-    showToast('저장 실패: ' + e.message, 'error');
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════
 // 실사 기준일 배너 UI 헬퍼
 // ══════════════════════════════════════════════════════════════════
 function lg2UpdateStocktakeBaseBanner() {
@@ -2302,4 +1750,222 @@ async function lg2ClearStocktakeBase() {
   } catch(e) {
     showToast('기준일 해제 실패: ' + e.message, 'error');
   }
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// 엑셀 일괄 실사 업로드 (드래그&드롭)
+// ══════════════════════════════════════════════════════════════════
+var _lg2AuditPendingRows = []; // 미리보기 데이터 임시 저장
+
+function lg2AuditDragOver(e) {
+  e.preventDefault();
+  var zone = document.getElementById('lg2AuditDropZone');
+  if (zone) zone.style.background = '#e8f8ef';
+}
+
+function lg2AuditDragLeave(e) {
+  var zone = document.getElementById('lg2AuditDropZone');
+  if (zone) zone.style.background = '#fff';
+}
+
+function lg2AuditDropFile(e) {
+  e.preventDefault();
+  var zone = document.getElementById('lg2AuditDropZone');
+  if (zone) zone.style.background = '#fff';
+  var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+  lg2AuditParseExcel(file);
+}
+
+function lg2AuditHandleFileInput(input) {
+  var file = input && input.files && input.files[0];
+  if (!file) return;
+  lg2AuditParseExcel(file);
+  input.value = ''; // 같은 파일 재선택 허용
+}
+
+function lg2AuditParseExcel(file) {
+  if (typeof XLSX === 'undefined') {
+    showToast('엑셀 라이브러리가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.', 'error');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, { type: 'array', cellDates: true });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // 헤더 행 찾기 (첫 번째 비어있지 않은 행)
+      var headerRowIdx = -1;
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        if (r.some(function(c) { return String(c).trim() !== ''; })) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+      if (headerRowIdx < 0) { showToast('데이터가 없습니다.', 'warning'); return; }
+
+      var header = rows[headerRowIdx].map(function(h) { return String(h).trim(); });
+
+      // 헤더 컬럼 인덱스 매핑
+      function col(names) {
+        for (var ni = 0; ni < names.length; ni++) {
+          for (var hi = 0; hi < header.length; hi++) {
+            if (header[hi].indexOf(names[ni]) >= 0) return hi;
+          }
+        }
+        return -1;
+      }
+
+      var iDate    = col(['실사일', '날짜', 'date']);
+      var iItem    = col(['품목명', '품목', '제품명', 'item', 'product']);
+      var iWh      = col(['창고', 'warehouse']);
+      var iQty     = col(['실재고량', '실재고', '실사수량', '수량', 'qty', 'quantity']);
+      var iExpiry  = col(['소비기한', '유통기한', 'expiry', 'expire']);
+
+      if (iItem < 0 || iQty < 0) {
+        showToast('품목명 또는 실재고량 컬럼을 찾을 수 없습니다.', 'error');
+        return;
+      }
+
+      // 날짜 변환 헬퍼
+      function toDateStr(val) {
+        if (!val) return '';
+        if (val instanceof Date) {
+          var y = val.getFullYear();
+          var mo = String(val.getMonth() + 1).padStart(2, '0');
+          var d = String(val.getDate()).padStart(2, '0');
+          return y + '-' + mo + '-' + d;
+        }
+        var s = String(val).trim();
+        if (/^\d{5}$/.test(s)) {
+          try {
+            var parsed = XLSX.SSF.parse_date_code(parseInt(s));
+            if (parsed) return parsed.y + '-' + String(parsed.m).padStart(2,'0') + '-' + String(parsed.d).padStart(2,'0');
+          } catch(ex) {}
+        }
+        var clean = s.replace(/\./g, '-').replace(/\//g, '-');
+        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(clean)) {
+          var parts = clean.split('-');
+          return parts[0] + '-' + parts[1].padStart(2,'0') + '-' + parts[2].padStart(2,'0');
+        }
+        return s;
+      }
+
+      // 창고 코드 변환
+      function toWhCode(val) {
+        var s = String(val || '').trim();
+        if (s.indexOf('저온') >= 0 || s.indexOf('C') >= 0 || s.indexOf('❄') >= 0) return 'C';
+        return 'W';
+      }
+
+      var todayStr = new Date().toISOString().split('T')[0];
+      var dataRows = rows.slice(headerRowIdx + 1).filter(function(r) {
+        return r.some(function(c) { return String(c).trim() !== ''; });
+      });
+
+      var parsed = [];
+      dataRows.forEach(function(r) {
+        var itemName = String(r[iItem] || '').trim();
+        var qty = Number(r[iQty]) || 0;
+        if (!itemName) return;
+        var auditDate = iDate >= 0 ? toDateStr(r[iDate]) : todayStr;
+        if (!auditDate) auditDate = todayStr;
+        var wh = iWh >= 0 ? toWhCode(r[iWh]) : 'W';
+        var expiry = iExpiry >= 0 ? toDateStr(r[iExpiry]) : '';
+        parsed.push({ date: auditDate, item_name: itemName, warehouse: wh, actual_qty: qty, expiry: expiry });
+      });
+
+      if (!parsed.length) { showToast('업로드할 데이터가 없습니다.', 'warning'); return; }
+
+      _lg2AuditPendingRows = parsed;
+
+      // 미리보기 렌더링
+      var tbody = document.getElementById('lg2AuditPreviewBody');
+      if (tbody) {
+        tbody.innerHTML = parsed.map(function(r) {
+          var whLabel = r.warehouse === 'C' ? '❄️ 저온(C)' : '🏭 일반(W)';
+          return '<tr><td>' + (r.date || '') + '</td><td>' + lg2esc(r.item_name) + '</td><td>' + whLabel + '</td><td style="text-align:right">' + r.actual_qty.toLocaleString() + '</td><td>' + (r.expiry || '') + '</td></tr>';
+        }).join('');
+      }
+      var titleEl = document.getElementById('lg2AuditPreviewTitle');
+      if (titleEl) titleEl.textContent = '미리보기 — ' + parsed.length + '건 (저장 버튼을 눌러 확정)';
+      var preview = document.getElementById('lg2AuditUploadPreview');
+      if (preview) preview.style.display = 'block';
+
+    } catch(err) {
+      console.error('실사 엑셀 파싱 오류:', err);
+      showToast('파일 파싱 중 오류가 발생했습니다: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function lg2AuditConfirmUpload() {
+  if (!_lg2AuditPendingRows || !_lg2AuditPendingRows.length) {
+    showToast('저장할 데이터가 없습니다.', 'warning');
+    return;
+  }
+  try {
+    var saved = 0;
+    // 실사일자별 최신 날짜 추출 (기준일 설정용)
+    var latestDate = '';
+    for (var i = 0; i < _lg2AuditPendingRows.length; i++) {
+      var row = _lg2AuditPendingRows[i];
+      var rec = {
+        date:        row.date,
+        audit_date:  row.date,
+        item_name:   row.item_name,
+        warehouse:   row.warehouse,
+        actual_qty:  row.actual_qty,
+        system_qty:  0,
+        diff_qty:    0,
+        expiry:      row.expiry || '',
+        manager:     '',
+        memo:        '엑셀 일괄 업로드',
+        source:      'excel',
+        created_at:  Date.now()
+      };
+      await apiPost('lg2_audit', rec);
+      saved++;
+      if (row.date && row.date > latestDate) latestDate = row.date;
+    }
+
+    // 실사일자를 기준일로 자동 설정 (가장 최근 실사일)
+    if (latestDate) {
+      try {
+        var configs = await apiGetAll('lg2_stocktake_config');
+        for (var ci = 0; ci < configs.length; ci++) {
+          if (configs[ci].id) await apiDelete('lg2_stocktake_config', configs[ci].id);
+        }
+        await apiPost('lg2_stocktake_config', { base_date: latestDate, set_at: Date.now() });
+        _lg2StocktakeBaseDate = latestDate;
+        lg2UpdateStocktakeBaseBanner();
+      } catch(e) {
+        console.warn('기준일 설정 실패:', e);
+      }
+    }
+
+    _lg2AuditPendingRows = [];
+    var preview = document.getElementById('lg2AuditUploadPreview');
+    if (preview) preview.style.display = 'none';
+
+    showToast('실사 데이터 ' + saved + '건 저장 완료! 실사일자(' + latestDate + ')가 재고 기준일로 설정되었습니다.', 'success');
+    await lg2LoadAll();
+  } catch(err) {
+    console.error('실사 저장 오류:', err);
+    showToast('저장 중 오류가 발생했습니다: ' + err.message, 'error');
+  }
+}
+
+function lg2AuditCancelUpload() {
+  _lg2AuditPendingRows = [];
+  var preview = document.getElementById('lg2AuditUploadPreview');
+  if (preview) preview.style.display = 'none';
+  var fileInput = document.getElementById('lg2AuditFileInput');
+  if (fileInput) fileInput.value = '';
 }
