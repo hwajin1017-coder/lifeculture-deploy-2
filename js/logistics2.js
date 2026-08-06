@@ -42,8 +42,9 @@ async function lg2LoadAll() {
     // 실사 기준일 로드 (가장 최근 config)
     var configs = results[4] || [];
     if (configs.length > 0) {
-      var latest = configs.sort(function(a,b){ return (b.updated_at||0)-(a.updated_at||0); })[0];
-      _lg2StocktakeBaseDate = latest.stocktake_base_date || null;
+      var latest = configs.sort(function(a,b){ return (b.set_at||b.updated_at||0)-(a.set_at||a.updated_at||0); })[0];
+      // base_date(엑셀 업로드) 또는 stocktake_base_date(수동 실사) 모두 지원
+      _lg2StocktakeBaseDate = latest.base_date || latest.stocktake_base_date || null;
     } else {
       _lg2StocktakeBaseDate = null;
     }
@@ -877,6 +878,22 @@ async function lg2SaveAudit() {
     } else {
       await apiPost('lg2_audit', data);
       showToast('재고실사 등록 완료!', 'success');
+    }
+    // 수동 실사 저장 시 해당 실사일자를 기준일로 자동 설정
+    try {
+      var existConfigs = await apiGetAll('lg2_stocktake_config');
+      // 기존 기준일보다 새 실사일이 더 최신인 경우에만 갱신
+      var curBase = _lg2StocktakeBaseDate || '';
+      if (date > curBase) {
+        for (var ci2 = 0; ci2 < existConfigs.length; ci2++) {
+          if (existConfigs[ci2].id) await apiDelete('lg2_stocktake_config', existConfigs[ci2].id);
+        }
+        await apiPost('lg2_stocktake_config', { base_date: date, stocktake_base_date: date, set_at: Date.now() });
+        _lg2StocktakeBaseDate = date;
+        lg2UpdateStocktakeBaseBanner();
+      }
+    } catch(ce) {
+      console.warn('[lg2] 기준일 갱신 실패:', ce);
     }
     lg2CloseAuditModal();
     await lg2LoadAll();
@@ -1932,7 +1949,7 @@ async function lg2AuditConfirmUpload() {
         for (var ci = 0; ci < configs.length; ci++) {
           if (configs[ci].id) await apiDelete('lg2_stocktake_config', configs[ci].id);
         }
-        await apiPost('lg2_stocktake_config', { base_date: latestDate, set_at: Date.now() });
+        await apiPost('lg2_stocktake_config', { base_date: latestDate, stocktake_base_date: latestDate, set_at: Date.now() });
         _lg2StocktakeBaseDate = latestDate;
         lg2UpdateStocktakeBaseBanner();
       } catch(e) {
