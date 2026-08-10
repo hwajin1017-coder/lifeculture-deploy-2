@@ -129,20 +129,22 @@
 
       <!-- 테이블 섹션 -->
       <div class="table-section">
-        <div class="table-header" style="flex-wrap:wrap;gap:8px">
+        <!-- 헤더 1행: 타이틀 + 신규등록 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
           <div class="table-title"><i class="fas fa-list" style="color:var(--primary)"></i> 제품 목록</div>
-          <div class="table-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <input type="text" id="p2Search" placeholder="제품명/코드 검색..." class="btn btn-secondary" style="height:38px;min-width:180px" oninput="p2RenderTable()" />
-            <select id="p2FilterType" class="btn btn-secondary" style="height:38px" onchange="p2RenderTable()">
-              <option value="">전체 구분</option>
-              <option value="자사">자사</option>
-              <option value="OEM">OEM</option>
-              <option value="수입">수입</option>
-            </select>
-            <button class="btn btn-primary" onclick="p2OpenModal()"><i class="fas fa-plus"></i> 신규 등록</button>
-            <button class="btn btn-secondary" onclick="p2ExportExcel()"><i class="fas fa-file-excel"></i> 엑셀 내보내기</button>
-            <button class="btn btn-secondary" onclick="p2DownloadTemplate()"><i class="fas fa-download"></i> 양식 다운로드</button>
-          </div>
+          <button class="btn btn-primary" onclick="p2OpenModal()"><i class="fas fa-plus"></i> 신규 등록</button>
+        </div>
+        <!-- 헤더 2행: 검색 + 필터 + 엑셀 버튼 -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px">
+          <input type="text" id="p2Search" placeholder="제품명/코드 검색..." class="btn btn-secondary" style="height:38px;min-width:200px;flex:1" oninput="p2RenderTable()" />
+          <select id="p2FilterType" class="btn btn-secondary" style="height:38px" onchange="p2RenderTable()">
+            <option value="">전체 구분</option>
+            <option value="자사">자사</option>
+            <option value="OEM">OEM</option>
+            <option value="수입">수입</option>
+          </select>
+          <button class="btn btn-secondary" onclick="p2ExportExcel()"><i class="fas fa-file-excel"></i> 엑셀 내보내기</button>
+          <button class="btn btn-secondary" onclick="p2DownloadTemplate()"><i class="fas fa-download"></i> 양식 다운로드</button>
         </div>
 
         <!-- 엑셀 업로드 영역 -->
