@@ -135,16 +135,16 @@
           <button class="btn btn-primary" onclick="p2OpenModal()"><i class="fas fa-plus"></i> 신규 등록</button>
         </div>
         <!-- 헤더 2행: 검색 + 필터 + 엑셀 버튼 -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px">
-          <input type="text" id="p2Search" placeholder="제품명/코드 검색..." style="height:38px;width:220px;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none" oninput="p2RenderTable()" />
-          <select id="p2FilterType" style="height:38px;width:auto;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer" onchange="p2RenderTable()">
-            <option value="">전체 구분</option>
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center;margin-bottom:4px;overflow-x:auto;padding-bottom:2px">
+          <input type="text" id="p2Search" placeholder="검색..." style="height:36px;width:160px;min-width:100px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;flex-shrink:0" oninput="p2RenderTable()" />
+          <select id="p2FilterType" style="height:36px;width:auto;min-width:80px;padding:0 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;flex-shrink:0" onchange="p2RenderTable()">
+            <option value="">전체</option>
             <option value="자사">자사</option>
             <option value="OEM">OEM</option>
             <option value="수입">수입</option>
           </select>
-          <button class="btn btn-secondary" onclick="p2ExportExcel()"><i class="fas fa-file-excel"></i> 엑셀 내보내기</button>
-          <button class="btn btn-secondary" onclick="p2DownloadTemplate()"><i class="fas fa-download"></i> 양식 다운로드</button>
+          <button class="btn btn-secondary" onclick="p2ExportExcel()" style="white-space:nowrap;flex-shrink:0;padding:0 10px;height:36px;font-size:12px"><i class="fas fa-file-excel"></i> 내보내기</button>
+          <button class="btn btn-secondary" onclick="p2DownloadTemplate()" style="white-space:nowrap;flex-shrink:0;padding:0 10px;height:36px;font-size:12px"><i class="fas fa-download"></i> 양식</button>
         </div>
 
         <!-- 엑셀 업로드 영역 -->
