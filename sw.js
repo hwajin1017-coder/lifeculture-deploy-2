@@ -1,9 +1,9 @@
 // ================================================
-// 라이프컬처 생산관리 앱 - Service Worker v3.8
+// 라이프컬처 생산관리 앱 - Service Worker v3.9
 // 오프라인 캐싱 및 PWA 지원
-// 개선: JS/CSS 파일 네트워크 우선 전략, 캐시 버전 자동 갱신
+// 개선: products2/logistics2 추가, 캐시 자동 초기화
 // ================================================
-const CACHE_NAME = 'lifeculture-mes-v3.8';
+const CACHE_NAME = 'lifeculture-mes-v3.9';
 
 // JS/CSS 파일: 항상 네트워크 우선 (배포 후 즉시 최신 버전 반영)
 const NETWORK_FIRST_PATTERNS = [
@@ -41,6 +41,8 @@ const STATIC_ASSETS = [
   './products.html',
   './sales.html',
   './logistics.html',
+  './logistics2.html',
+  './products2.html',
   './css/style.css',
   './css/production.css',
   './css/traceability.css',
@@ -63,6 +65,8 @@ const STATIC_ASSETS = [
   './js/products.js',
   './js/sales.js',
   './js/logistics.js',
+  './js/logistics2.js',
+  './js/products2.js',
   './js/warehouse-mgmt.js',
   './images/icon-192-v2.png',
   './images/icon-512-v2.png'
@@ -72,7 +76,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('[SW] 캐싱 중... v3.8');
+      console.log('[SW] 캐싱 중... v3.9');
       const results = await Promise.allSettled(
         STATIC_ASSETS.map(url =>
           cache.add(new Request(url, { cache: 'reload' }))
@@ -82,7 +86,7 @@ self.addEventListener('install', (event) => {
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       console.log(`[SW] 캐싱 완료: ${succeeded}/${STATIC_ASSETS.length}`);
     }).then(() => {
-      console.log('[SW] 설치 완료 v3.8');
+      console.log('[SW] 설치 완료 v3.9');
       self.skipWaiting();
     })
   );
@@ -101,7 +105,7 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-      console.log('[SW] 활성화 완료 v3.8');
+      console.log('[SW] 활성화 완료 v3.9');
       return self.clients.claim();
     })
   );

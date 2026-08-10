@@ -15,9 +15,23 @@ if ('serviceWorker' in navigator) {
           const newWorker = reg.installing;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              showUpdateToast();
+              // 새 버전 감지 시 자동으로 캐시 초기화 후 페이지 새로고침
+              console.log('[PWA] 새 버전 감지 - 캐시 초기화 후 자동 새로고침');
+              caches.keys().then(keys => {
+                return Promise.all(keys.map(key => caches.delete(key)));
+              }).then(() => {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+              });
             }
           });
+        });
+        // 컨트롤러 변경 시 자동 새로고침 (skipWaiting 후)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!window._swReloading) {
+            window._swReloading = true;
+            window.location.reload();
+          }
         });
       })
       .catch(err => console.warn('[PWA] SW 등록 실패:', err));
