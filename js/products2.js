@@ -135,7 +135,6 @@ function p2OpenModal(id) {
 // ── 폼 채우기 (수정 시) ──
 function p2FillForm(rec) {
   var set = function(id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; };
-  set('p2GsCode', rec.gs_code);
   set('p2OwnCode', rec.own_code);
   set('p2ProductCode', rec.product_code);
   set('p2ProductName', rec.product_name);
@@ -249,7 +248,6 @@ function p2GetFormData() {
   }
 
   return {
-    gs_code:          get('p2GsCode'),
     own_code:         get('p2OwnCode'),
     product_code:     get('p2ProductCode'),
     product_name:     get('p2ProductName'),
@@ -640,9 +638,9 @@ function p2CancelUpload() {
 // ══════════════════════════════════════════════════
 function p2ExportExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리 로드 중입니다.', 'error'); return; }
-  var headers = ['당사분류코드','GS분류코드','상품코드','상품명','원가','중량(g)','박스입수(EA)','파렛트입수(박스)','부가세구분','상품구분','소비기한','보관','표준단위','HACCP','적정재고','협력사코드','협력사명','주소','담당자','연락처','가로(cm)','세로(cm)','높이(cm)','내용량','내용량단위','총중량(g)','비고'];
+  var headers = ['당사분류코드','상품코드','상품명','원가','중량(g)','박스입수(EA)','파렛트입수(박스)','부가세구분','상품구분','소비기한','보관','표준단위','HACCP','적정재고','협력사코드','협력사명','주소','담당자','연락처','가로(cm)','세로(cm)','높이(cm)','내용량','내용량단위','총중량(g)','비고'];
   var rows = _p2AllData.map(function(r) {
-    return [r.own_code||'', r.gs_code||'', r.product_code||'', r.product_name||'',
+    return [r.own_code||'', r.product_code||'', r.product_name||'',
       r.cost_price||'', r.weight||'', r.qty_per_box||'', r.box_per_pallet||'',
       r.vat_type||'', r.product_type||'', r.shelf_life||'', r.storage||'',
       r.std_unit||'', r.haccp||'', r.min_stock||'',
@@ -661,8 +659,8 @@ function p2ExportExcel() {
 // ══════════════════════════════════════════════════
 function p2DownloadTemplate() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리 로드 중입니다.', 'error'); return; }
-  var headers = ['당사 분류코드','GS리테일 상품분류코드','상품코드','상품명','원가','중량(g)','박스입수(EA)','파렛트입수(박스)','부가세구분','상품구분(자사/OEM/수입)','소비기한','보관(냉장/냉동/상온/실온)','표준단위(EA/BOX)','HACCP 유무(있음/없음)','적정재고량(EA)','협력사코드','협력사명','주소','담당자','연락처','가로(cm)','세로(cm)','높이(cm)','내용량','내용량단위','총중량(g)','비고'];
-  var sample = ['LC-001','GS-001','P001','예시 상품명','5000','200','24','40','과세','자사','제조일로부터 12월','상온','EA','있음','100','S001','(주)예시협력사','서울시 강남구','홍길동','010-0000-0000','30','20','25','200','ml','500','비고 입력'];
+  var headers = ['당사 분류코드','상품코드','상품명','원가','중량(g)','박스입수(EA)','파렛트입수(박스)','부가세구분','상품구분(자사/OEM/수입)','소비기한','보관(냉장/냉동/상온/실온)','표준단위(EA/BOX)','HACCP 유무(있음/없음)','적정재고량(EA)','협력사코드','협력사명','주소','담당자','연락처','가로(cm)','세로(cm)','높이(cm)','내용량','내용량단위','총중량(g)','비고'];
+  var sample = ['LC-001','P001','예시 상품명','5000','200','24','40','과세','자사','제조일로부터 12월','상온','EA','있음','100','S001','(주)예시협력사','서울시 강남구','홍길동','010-0000-0000','30','20','25','200','ml','500','비고 입력'];
   var ws = XLSX.utils.aoa_to_sheet([headers, sample]);
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '양식');
