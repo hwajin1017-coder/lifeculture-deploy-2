@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2C5F2E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="라이프컬처" />
+  <title>제품마스터정보2 - 라이프컬처</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="images/icon-512-v2.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="images/icon-192-v2.png" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/production.css" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* 상세보기 패널 */
+    #p2DetailPanel {
+      display:none;
+      position:fixed;top:0;right:0;width:520px;height:100vh;
+      background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,0.15);
+      z-index:2000;overflow-y:auto;
+    }
+    #p2DetailPanel.open { display:block; }
+    .p2-detail-header {
+      background:linear-gradient(135deg,#2C5F2E,#4a9e4d);
+      color:#fff;padding:20px 24px;
+      display:flex;align-items:center;justify-content:space-between;
+    }
+    .p2-detail-section {
+      padding:16px 24px;border-bottom:1px solid #eee;
+    }
+    .p2-detail-section h4 {
+      font-size:12px;font-weight:700;color:#2C5F2E;
+      text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;
+    }
+    .p2-detail-grid {
+      display:grid;grid-template-columns:1fr 1fr;gap:8px;
+    }
+    .p2-detail-item label {
+      font-size:11px;color:#888;display:block;margin-bottom:2px;
+    }
+    .p2-detail-item span {
+      font-size:13px;color:#333;font-weight:500;
+    }
+    .p2-bundle-table, .p2-box-table {
+      width:100%;border-collapse:collapse;font-size:12px;
+    }
+    .p2-bundle-table th, .p2-box-table th {
+      background:#f5f5f5;padding:6px 8px;text-align:left;
+      border:1px solid #e0e0e0;font-weight:600;color:#555;
+    }
+    .p2-bundle-table td, .p2-box-table td {
+      padding:6px 8px;border:1px solid #e0e0e0;color:#333;
+    }
+    /* 드래그앤드롭 업로드 영역 */
+    #p2DropZone {
+      border:2px dashed #4a9e4d;border-radius:10px;
+      padding:28px;text-align:center;cursor:pointer;
+      background:#f8fff8;transition:all 0.2s;
+    }
+    #p2DropZone:hover, #p2DropZone.drag-over {
+      background:#e8f8ef;border-color:#2C5F2E;
+    }
+    /* 테이블 행 클릭 */
+    #p2TableBody tr { cursor:pointer; }
+    #p2TableBody tr:hover { background:#f0f8f1 !important; }
+    #p2TableBody tr.selected { background:#e8f5e9 !important; }
+    /* 번들/박스 서브테이블 모달 내 */
+    .sub-table-wrap { overflow-x:auto; }
+    .sub-table { width:100%;border-collapse:collapse;font-size:12px; }
+    .sub-table th { background:#e8f5e9;padding:6px 8px;border:1px solid #c8e6c9;font-weight:600;color:#2C5F2E; }
+    .sub-table td { padding:6px 8px;border:1px solid #e0e0e0; }
+    .sub-table td input { width:100%;border:1px solid #ddd;border-radius:4px;padding:4px 6px;font-size:12px;box-sizing:border-box; }
+    .add-row-btn { margin-top:6px;padding:4px 12px;background:#e8f5e9;color:#2C5F2E;border:1px solid #c8e6c9;border-radius:4px;cursor:pointer;font-size:12px; }
+    .del-row-btn { padding:2px 8px;background:#ffebee;color:#c62828;border:1px solid #ef9a9a;border-radius:4px;cursor:pointer;font-size:11px; }
+  </style>
+</head>
+<body>
+  <div class="offline-bar" id="offlineBar"><i class="fas fa-wifi-slash"></i> 오프라인 상태입니다.</div>
+  <div class="online-bar" id="onlineBar"><i class="fas fa-check-circle"></i> 온라인 상태로 복구되었습니다.</div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-wrap">
+        <div class="logo-icon"><i class="fas fa-coffee"></i></div>
+        <div class="logo-text"><span class="brand">라이프컬처</span><span class="sub">생산관리 시스템</span></div>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer">
+      <span>LifeCulture Co.</span><span id="currentDate"></span>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+        <h1 class="page-title"><i class="fas fa-tag" style="color:#2C5F2E;margin-right:8px"></i>제품마스터정보2</h1>
+      </div>
+      <div class="topbar-right"><span class="topbar-date" id="topbarDate"></span></div>
+    </header>
+
+    <div class="content-area">
+      <!-- KPI 카드 -->
+      <div class="kpi-grid" style="margin-bottom:24px">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(44,95,46,0.1);color:#2C5F2E"><i class="fas fa-boxes"></i></div>
+          <div class="kpi-content"><div class="kpi-value" id="p2TotalCount">0</div><div class="kpi-label">총 제품수</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(39,174,96,0.1);color:#27ae60"><i class="fas fa-industry"></i></div>
+          <div class="kpi-content"><div class="kpi-value" id="p2OwnCount">0</div><div class="kpi-label">자사</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(52,152,219,0.1);color:#3498db"><i class="fas fa-handshake"></i></div>
+          <div class="kpi-content"><div class="kpi-value" id="p2OemCount">0</div><div class="kpi-label">OEM</div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(212,160,23,0.1);color:#D4A017"><i class="fas fa-globe"></i></div>
+          <div class="kpi-content"><div class="kpi-value" id="p2ImpCount">0</div><div class="kpi-label">수입</div></div>
+        </div>
+      </div>
+
+      <!-- 테이블 섹션 -->
+      <div class="table-section">
+        <div class="table-header">
+          <div class="table-title"><i class="fas fa-list" style="color:var(--primary)"></i> 제품 목록</div>
+          <div class="table-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="p2Search" placeholder="제품명/코드 검색..." class="btn btn-secondary" style="height:38px;min-width:180px" oninput="p2RenderTable()" />
+            <select id="p2FilterType" class="btn btn-secondary" style="height:38px" onchange="p2RenderTable()">
+              <option value="">전체 구분</option>
+              <option value="자사">자사</option>
+              <option value="OEM">OEM</option>
+              <option value="수입">수입</option>
+            </select>
+            <button class="btn btn-primary" onclick="p2OpenModal()"><i class="fas fa-plus"></i> 신규 등록</button>
+            <button class="btn btn-secondary" onclick="p2ExportExcel()"><i class="fas fa-file-excel"></i> 엑셀 내보내기</button>
+            <button class="btn btn-secondary" onclick="p2DownloadTemplate()"><i class="fas fa-download"></i> 양식 다운로드</button>
+          </div>
+        </div>
+
+        <!-- 엑셀 업로드 영역 -->
+        <div style="padding:12px 0 4px">
+          <div id="p2DropZone"
+            ondragover="p2DragOver(event)" ondragleave="p2DragLeave(event)" ondrop="p2Drop(event)"
+            onclick="document.getElementById('p2FileInput').click()">
+            <i class="fas fa-file-excel" style="font-size:28px;color:#4a9e4d;margin-bottom:8px"></i>
+            <div style="font-size:14px;font-weight:600;color:#2C5F2E">엑셀 파일을 드래그하거나 클릭하여 업로드</div>
+            <div style="font-size:12px;color:#888;margin-top:4px">지원 형식: .xlsx, .xls — 양식 다운로드 후 작성하여 업로드</div>
+          </div>
+          <input type="file" id="p2FileInput" accept=".xlsx,.xls" style="display:none" onchange="p2HandleFile(this.files[0])" />
+        </div>
+
+        <!-- 미리보기 영역 -->
+        <div id="p2UploadPreview" style="display:none;margin-top:12px;border:1px solid #c8e6c9;border-radius:8px;padding:16px;background:#f8fff8">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span id="p2PreviewTitle" style="font-weight:600;color:#2C5F2E;font-size:14px"></span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="p2ConfirmUpload()" style="padding:6px 16px;font-size:13px"><i class="fas fa-save"></i> 저장</button>
+              <button class="btn btn-secondary" onclick="p2CancelUpload()" style="padding:6px 16px;font-size:13px">취소</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="sub-table" id="p2PreviewTable">
+              <thead id="p2PreviewHead"></thead>
+              <tbody id="p2PreviewBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:12px">
+          <table id="p2Table">
+            <thead>
+              <tr>
+                <th>당사분류코드</th>
+                <th>상품코드</th>
+                <th>상품명</th>
+                <th>상품구분</th>
+                <th>박스입수(EA)</th>
+                <th>보관</th>
+                <th>협력사명</th>
+                <th>적정재고</th>
+                <th style="width:80px">관리</th>
+              </tr>
+            </thead>
+            <tbody id="p2TableBody">
+              <tr><td colspan="9" style="text-align:center;color:#aaa;padding:40px">데이터를 불러오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;flex-wrap:wrap;gap:8px">
+          <span id="p2TableCount" style="color:#666;font-size:14px">0건</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── 등록/수정 모달 ── -->
+  <div class="modal-overlay" id="p2Modal">
+    <div class="modal" style="max-width:900px;max-height:92vh;overflow-y:auto">
+      <div class="modal-header">
+        <h3 id="p2ModalTitle"><i class="fas fa-tag" style="color:var(--primary)"></i> 신규 제품 등록</h3>
+        <button class="modal-close" onclick="p2CloseModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="p2Form" onsubmit="p2HandleSubmit(event)">
+
+          <!-- ① 분류코드 -->
+          <div style="background:#f0f8f1;border:1px solid #c8e6c9;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:#2C5F2E;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">🏷️ 분류코드</div>
+            <div class="form-grid form-grid-4">
+              <div class="form-group span-2">
+                <label>GS리테일 상품분류코드</label>
+                <input type="text" id="p2GsCode" placeholder="GS리테일 분류코드" />
+              </div>
+              <div class="form-group span-2">
+                <label>당사 분류코드 <span class="required">*</span></label>
+                <input type="text" id="p2OwnCode" required placeholder="당사 분류코드 (예: LC-001)" />
+              </div>
+            </div>
+          </div>
+
+          <!-- ② 기본정보 -->
+          <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">📦 기본정보</div>
+            <div class="form-grid form-grid-4">
+              <div class="form-group span-2">
+                <label>상품코드</label>
+                <input type="text" id="p2ProductCode" placeholder="개별 상품코드" />
+              </div>
+              <div class="form-group span-2">
+                <label>상품명 <span class="required">*</span></label>
+                <input type="text" id="p2ProductName" required placeholder="상품명 입력" />
+              </div>
+              <div class="form-group">
+                <label>원가 (원)</label>
+                <input type="number" id="p2CostPrice" min="0" step="1" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>중량 (g)</label>
+                <input type="number" id="p2Weight" min="0" step="0.1" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>박스입수 (EA)</label>
+                <input type="number" id="p2QtyPerBox" min="1" step="1" placeholder="예: 24" />
+              </div>
+              <div class="form-group">
+                <label>파렛트입수 (박스)</label>
+                <input type="number" id="p2BoxPerPallet" min="1" step="1" placeholder="예: 40" />
+              </div>
+              <div class="form-group">
+                <label>부가세구분</label>
+                <select id="p2VatType">
+                  <option value="">선택</option>
+                  <option value="과세">과세</option>
+                  <option value="면세">면세</option>
+                  <option value="영세">영세</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>상품구분</label>
+                <select id="p2ProductType">
+                  <option value="">선택</option>
+                  <option value="자사">자사</option>
+                  <option value="OEM">OEM</option>
+                  <option value="수입">수입</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>소비기한</label>
+                <input type="text" id="p2ShelfLife" placeholder="예: 제조일로부터 12월" />
+              </div>
+              <div class="form-group">
+                <label>보관조건</label>
+                <select id="p2Storage">
+                  <option value="">선택</option>
+                  <option value="냉장">냉장</option>
+                  <option value="냉동">냉동</option>
+                  <option value="상온">상온</option>
+                  <option value="실온">실온</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>표준단위</label>
+                <select id="p2StdUnit">
+                  <option value="">선택</option>
+                  <option value="EA">EA</option>
+                  <option value="BOX">BOX</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>HACCP 유무</label>
+                <select id="p2Haccp">
+                  <option value="">선택</option>
+                  <option value="있음">있음</option>
+                  <option value="없음">없음</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>적정재고량 (EA)</label>
+                <input type="number" id="p2MinStock" min="0" step="1" placeholder="예: 100" />
+              </div>
+            </div>
+          </div>
+
+          <!-- ③ 협력사 정보 -->
+          <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">🏢 협력사 정보</div>
+            <div class="form-grid form-grid-4">
+              <div class="form-group">
+                <label>협력사코드</label>
+                <input type="text" id="p2SupplierCode" placeholder="협력사코드" />
+              </div>
+              <div class="form-group span-3">
+                <label>협력사명</label>
+                <input type="text" id="p2SupplierName" placeholder="협력사명" />
+              </div>
+              <div class="form-group span-2">
+                <label>주소</label>
+                <input type="text" id="p2SupplierAddr" placeholder="주소" />
+              </div>
+              <div class="form-group">
+                <label>담당자</label>
+                <input type="text" id="p2SupplierContact" placeholder="담당자명" />
+              </div>
+              <div class="form-group">
+                <label>연락처</label>
+                <input type="text" id="p2SupplierPhone" placeholder="010-0000-0000" />
+              </div>
+            </div>
+          </div>
+
+          <!-- ④ 박스규격 -->
+          <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">📐 박스규격</div>
+            <div class="form-grid form-grid-4">
+              <div class="form-group">
+                <label>가로 (cm)</label>
+                <input type="number" id="p2BoxW" min="0" step="0.1" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>세로 (cm)</label>
+                <input type="number" id="p2BoxD" min="0" step="0.1" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>높이 (cm)</label>
+                <input type="number" id="p2BoxH" min="0" step="0.1" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>내용량</label>
+                <input type="number" id="p2BoxContent" min="0" step="0.1" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>내용량단위</label>
+                <input type="text" id="p2BoxContentUnit" placeholder="예: ml, g, EA" />
+              </div>
+              <div class="form-group">
+                <label>총중량 (g)</label>
+                <input type="number" id="p2BoxTotalWeight" min="0" step="0.1" placeholder="0" />
+              </div>
+            </div>
+          </div>
+
+          <!-- ⑤ 자코드 (번들 상품) -->
+          <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">🔗 자코드 (번들 상품)</div>
+            <div style="font-size:12px;color:#888;margin-bottom:8px">낱개 상품을 2개, 3개, 4개, 5개 번들로 묶어 판매하는 경우 등록</div>
+            <div class="sub-table-wrap">
+              <table class="sub-table">
+                <thead>
+                  <tr>
+                    <th>자코드 구분</th>
+                    <th>상품코드</th>
+                    <th>상품명</th>
+                    <th>번들기준 (개)</th>
+                    <th style="width:50px">삭제</th>
+                  </tr>
+                </thead>
+                <tbody id="p2BundleBody">
+                  <tr id="p2BundleRow0">
+                    <td>자코드 1</td>
+                    <td><input type="text" id="p2Bundle0Code" placeholder="상품코드" /></td>
+                    <td><input type="text" id="p2Bundle0Name" placeholder="상품명" /></td>
+                    <td><input type="number" id="p2Bundle0Qty" min="2" step="1" value="2" style="width:60px" /></td>
+                    <td></td>
+                  </tr>
+                  <tr id="p2BundleRow1">
+                    <td>자코드 2</td>
+                    <td><input type="text" id="p2Bundle1Code" placeholder="상품코드" /></td>
+                    <td><input type="text" id="p2Bundle1Name" placeholder="상품명" /></td>
+                    <td><input type="number" id="p2Bundle1Qty" min="2" step="1" value="3" style="width:60px" /></td>
+                    <td></td>
+                  </tr>
+                  <tr id="p2BundleRow2">
+                    <td>자코드 3</td>
+                    <td><input type="text" id="p2Bundle2Code" placeholder="상품코드" /></td>
+                    <td><input type="text" id="p2Bundle2Name" placeholder="상품명" /></td>
+                    <td><input type="number" id="p2Bundle2Qty" min="2" step="1" value="4" style="width:60px" /></td>
+                    <td></td>
+                  </tr>
+                  <tr id="p2BundleRow3">
+                    <td>자코드 4</td>
+                    <td><input type="text" id="p2Bundle3Code" placeholder="상품코드" /></td>
+                    <td><input type="text" id="p2Bundle3Name" placeholder="상품명" /></td>
+                    <td><input type="number" id="p2Bundle3Qty" min="2" step="1" value="5" style="width:60px" /></td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ⑥ Box상품코드 -->
+          <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:8px;padding:14px 16px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">📦 Box 상품코드</div>
+            <div style="font-size:12px;color:#888;margin-bottom:8px">박스 단위로 판매되는 경우 Box 상품코드와 상품명을 등록</div>
+            <div class="sub-table-wrap">
+              <table class="sub-table">
+                <thead>
+                  <tr>
+                    <th>Box 상품코드</th>
+                    <th>Box 상품명</th>
+                    <th>박스 입수 (EA)</th>
+                    <th style="width:50px">삭제</th>
+                  </tr>
+                </thead>
+                <tbody id="p2BoxBody">
+                  <tr>
+                    <td><input type="text" id="p2Box0Code" placeholder="Box 상품코드" /></td>
+                    <td><input type="text" id="p2Box0Name" placeholder="Box 상품명" /></td>
+                    <td><input type="number" id="p2Box0Qty" min="1" step="1" placeholder="예: 30" style="width:80px" /></td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <button type="button" class="add-row-btn" onclick="p2AddBoxRow()"><i class="fas fa-plus"></i> Box 행 추가</button>
+          </div>
+
+          <!-- ⑦ 비고 -->
+          <div class="form-grid form-grid-4">
+            <div class="form-group span-4">
+              <label>비고</label>
+              <input type="text" id="p2Remarks" placeholder="추가 정보 입력" />
+            </div>
+          </div>
+
+          <div class="modal-footer" style="margin-top:24px">
+            <button type="button" class="btn btn-secondary" onclick="p2CloseModal()">취소</button>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> 저장하기</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 상세보기 패널 ── -->
+  <div id="p2DetailPanel">
+    <div class="p2-detail-header">
+      <div>
+        <div style="font-size:11px;opacity:0.8;margin-bottom:4px" id="p2DetailCode"></div>
+        <div style="font-size:18px;font-weight:700" id="p2DetailName"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="p2EditFromDetail()" style="padding:6px 14px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:6px;cursor:pointer;font-size:12px"><i class="fas fa-edit"></i> 수정</button>
+        <button onclick="p2CloseDetail()" style="padding:6px 14px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:6px;cursor:pointer;font-size:12px"><i class="fas fa-times"></i> 닫기</button>
+      </div>
+    </div>
+    <div id="p2DetailBody"></div>
+  </div>
+  <!-- 상세보기 배경 오버레이 -->
+  <div id="p2DetailOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1999" onclick="p2CloseDetail()"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-init.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/products2.js"></script>
+</body>
+</html>

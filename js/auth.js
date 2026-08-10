@@ -22,6 +22,7 @@ const ALL_MENUS = [
   { key: 'box-packing',     label: '완제품(박스) 포장' },
   { key: 'sales',           label: '온라인몰 판매' },
   { key: 'products',        label: '제품마스터정보' },
+  { key: 'products2',       label: '제품마스터정보2' },
   { key: 'logistics',       label: '물류관리' },
   { key: 'logistics2',      label: '물류관리2' },
   { key: 'backup',          label: '데이터 백업/복원' }
@@ -35,7 +36,7 @@ const ROLE_PERMISSIONS = {
     label: '관리자',
     color: '#e74c3c',
     badge: '관리자',
-    menus: ['dashboard', 'raw-materials', 'materials-master', 'vendors', 'roasting', 'grinding', 'extraction', 'bottle-packing', 'box-packing', 'traceability', 'sales', 'products', 'logistics', 'logistics2', 'backup', 'user-admin'],
+    menus: ['dashboard', 'raw-materials', 'materials-master', 'vendors', 'roasting', 'grinding', 'extraction', 'bottle-packing', 'box-packing', 'traceability', 'sales', 'products', 'products2', 'logistics', 'logistics2', 'backup', 'user-admin'],
     canEdit: true,
     canDelete: true,
     canExport: true
@@ -62,7 +63,7 @@ const ROLE_PERMISSIONS = {
     label: '영업팀',
     color: '#8e44ad',
     badge: '영업',
-    menus: ['dashboard', 'sales', 'products', 'traceability'],
+    menus: ['dashboard', 'sales', 'products', 'products2', 'traceability'],
     canEdit: true,
     canDelete: false,
     canExport: true

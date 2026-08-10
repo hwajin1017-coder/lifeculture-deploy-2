@@ -136,6 +136,7 @@ function getSidebarHTML(activePage = '') {
       category: '영업팀',
       items: [
         { label: '제품마스터정보', href: 'products.html', icon: 'fa-tag', menu: 'products' },
+        { label: '제품마스터정보2', href: 'products2.html', icon: 'fa-tags', menu: 'products2' },
         { label: '온라인몰 판매', href: 'sales.html', icon: 'fa-shopping-cart', menu: 'sales' }
       ]
     },
