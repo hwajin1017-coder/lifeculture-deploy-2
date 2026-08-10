@@ -259,8 +259,77 @@ function lg2GetFifoStock(itemName, warehouse) {
   }
 
   // ════════════════════════════════════════════════════════
-  // [B] 실사 기준일 미설정: 전체 입출고 FIFO 계산
+  // [B] 실사 기준일 미설정
+  //   실사 데이터가 있으면 가장 최근 실사를 자동 기준점으로 사용
+  //   (기준일 해제 후에도 실사 수량이 재고 기준으로 유지됨)
+  //   실사 데이터가 없으면 전체 입출고 FIFO 계산
   // ════════════════════════════════════════════════════════
+
+  // 이 품목의 가장 최근 실사일 탐색
+  var latestAuditDate = '';
+  _lg2AuditData.forEach(function(a) {
+    if ((a.item_name || '').trim() !== itemTrim) return;
+    if (wh && a.warehouse !== wh) return;
+    var aDate = a.date || a.audit_date || '';
+    if (aDate > latestAuditDate) latestAuditDate = aDate;
+  });
+
+  if (latestAuditDate) {
+    // 가장 최근 실사일 이하 실사 중 소비기한별 최신 스냅샷 구성
+    var autoSnap = {};
+    _lg2AuditData.forEach(function(a) {
+      if ((a.item_name || '').trim() !== itemTrim) return;
+      if (wh && a.warehouse !== wh) return;
+      var aDate = a.date || a.audit_date || '';
+      if (!aDate || aDate > latestAuditDate) return;
+      var expKey = a.expiry || '';
+      if (!autoSnap[expKey] || aDate > autoSnap[expKey].snapDate) {
+        autoSnap[expKey] = { actual_qty: Number(a.actual_qty) || 0, snapDate: aDate };
+      }
+    });
+
+    var autoMap = {};
+    Object.keys(autoSnap).forEach(function(expKey) {
+      autoMap[expKey] = {
+        expiry:    expKey,
+        warehouse: wh || '',
+        inQty:     autoSnap[expKey].actual_qty,
+        outQty:    0
+      };
+    });
+
+    // 가장 최근 실사일 이후 입고 추가
+    _lg2InboundData.forEach(function(r) {
+      if ((r.item_name || '').trim() !== itemTrim) return;
+      if (wh && r.warehouse !== wh) return;
+      if (!r.date || r.date <= latestAuditDate) return;
+      var expKey = r.expiry || '';
+      if (!autoMap[expKey]) autoMap[expKey] = { expiry: expKey, warehouse: r.warehouse || '', inQty: 0, outQty: 0 };
+      autoMap[expKey].inQty += Number(r.qty_ea) || 0;
+    });
+
+    // 가장 최근 실사일 이후 출고 FIFO 차감
+    var outAfterAudit = _lg2OutboundData.filter(function(r) {
+      if ((r.item_name || '').trim() !== itemTrim) return false;
+      if (wh && r.warehouse !== wh) return false;
+      return r.date && r.date > latestAuditDate;
+    });
+    var autoKeys = Object.keys(autoMap).sort(function(a, b) {
+      return (autoMap[a].expiry || '9999').localeCompare(autoMap[b].expiry || '9999');
+    });
+    var remAuto = outAfterAudit.reduce(function(s, r) { return s + (Number(r.qty_ea) || 0); }, 0);
+    autoKeys.forEach(function(k) {
+      if (remAuto <= 0) return;
+      var d = Math.min(remAuto, autoMap[k].inQty - autoMap[k].outQty);
+      if (d > 0) { autoMap[k].outQty += d; remAuto -= d; }
+    });
+    return autoKeys.map(function(k) {
+      var row = autoMap[k];
+      return { expiry: row.expiry, warehouse: row.warehouse, inQty: row.inQty, outQty: row.outQty, stock: row.inQty - row.outQty };
+    });
+  }
+
+  // 실사 데이터 없음: 전체 입출고 FIFO 계산
   var inMap = {};
   _lg2InboundData.forEach(function(r) {
     if ((r.item_name || '').trim() !== itemTrim) return;
@@ -281,12 +350,11 @@ function lg2GetFifoStock(itemName, warehouse) {
     var deduct = Math.min(remaining, inMap[k].inQty - inMap[k].outQty);
     if (deduct > 0) { inMap[k].outQty += deduct; remaining -= deduct; }
   });
-  return keys.map(function(k) {
+    return keys.map(function(k) {
     var row = inMap[k];
     return { expiry: row.expiry, warehouse: row.warehouse, inQty: row.inQty, outQty: row.outQty, stock: row.inQty - row.outQty };
   });
 }
-
 /** 품목·창고의 총 현재고(ea) */
 function lg2GetTotalStock(itemName, warehouse) {
   return lg2GetFifoStock(itemName, warehouse).reduce(function(s, r) { return s + r.stock; }, 0);
@@ -309,18 +377,17 @@ function lg2RenderOverview() {
     var key = name + '||' + w;
     if (!itemSet[key]) itemSet[key] = { name: name, warehouse: w };
   });
-  // 실사 기준일이 있으면 실사 데이터의 품목도 포함
-  if (_lg2StocktakeBaseDate) {
-    _lg2AuditData.forEach(function(a) {
-      var name = (a.item_name || '').trim();
-      var w    = a.warehouse || '';
-      if (!name) return;
-      var aDate = a.date || a.audit_date || '';
-      if (!aDate || aDate > _lg2StocktakeBaseDate) return;
-      var key = name + '||' + w;
-      if (!itemSet[key]) itemSet[key] = { name: name, warehouse: w };
-    });
-  }
+  // 실사 데이터의 품목도 항상 포함 (기준일 유무와 무관하게)
+  // 기준일이 있으면 기준일 이하 실사만, 없으면 전체 실사 품목 포함
+  _lg2AuditData.forEach(function(a) {
+    var name = (a.item_name || '').trim();
+    var w    = a.warehouse || '';
+    if (!name) return;
+    var aDate = a.date || a.audit_date || '';
+    if (_lg2StocktakeBaseDate && aDate > _lg2StocktakeBaseDate) return;
+    var key = name + '||' + w;
+    if (!itemSet[key]) itemSet[key] = { name: name, warehouse: w };
+  });
 
   var rows = Object.values(itemSet);
   if (wh) rows = rows.filter(function(r) { return r.warehouse === wh; });
