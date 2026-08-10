@@ -136,8 +136,8 @@
         </div>
         <!-- 헤더 2행: 검색 + 필터 + 엑셀 버튼 -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px">
-          <input type="text" id="p2Search" placeholder="제품명/코드 검색..." class="btn btn-secondary" style="height:38px;width:220px" oninput="p2RenderTable()" />
-          <select id="p2FilterType" class="btn btn-secondary" style="height:38px" onchange="p2RenderTable()">
+          <input type="text" id="p2Search" placeholder="제품명/코드 검색..." style="height:38px;width:220px;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none" oninput="p2RenderTable()" />
+          <select id="p2FilterType" style="height:38px;width:auto;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer" onchange="p2RenderTable()">
             <option value="">전체 구분</option>
             <option value="자사">자사</option>
             <option value="OEM">OEM</option>
