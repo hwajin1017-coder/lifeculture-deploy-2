@@ -12,6 +12,18 @@ var _p2PendingRows = []; // 엑셀 미리보기 임시 데이터
 
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', function() {
+  // 인증 및 사이드바 초기화 (다른 페이지와 동일한 방식)
+  if (typeof requireAuth === 'function') {
+    var user = requireAuth('products2');
+    if (!user) return;
+  }
+  var sidebarNav = document.getElementById('sidebarNav');
+  if (sidebarNav && typeof getSidebarHTML === 'function') {
+    sidebarNav.innerHTML = getSidebarHTML('products2.html');
+  }
+  if (typeof setupSidebar === 'function') setupSidebar();
+  if (typeof renderUserHeader === 'function') renderUserHeader();
+  if (typeof initDateDisplay === 'function') initDateDisplay();
   p2LoadAll();
 });
 
