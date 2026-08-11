@@ -59,15 +59,13 @@ function filterLotPicker() {
 function selectLot(lotNo, productName, actualQty) {
   document.getElementById('f_bottle_lot_no').value = lotNo;
   document.getElementById('f_product_linked').value = productName;
-  if (!document.getElementById('f_product_name').value) {
-    document.getElementById('f_product_name').value = productName;
-  }
-  // 박스당 입수 기본값 제안
-  const perBox = document.getElementById('f_qty_per_box').value;
-  if (perBox && actualQty) {
-    const boxes = Math.floor(parseInt(actualQty) / parseInt(perBox));
-    document.getElementById('f_box_count').value = boxes;
-    calcTotal();
+  document.getElementById('f_product_name').value = productName;
+  const sourceQty = parseInt(actualQty, 10) || 0;
+  // 이전 병포장 실생산수는 총 병 수에 즉시 표시하고, 박스당 입수가 있으면 박스 수도 제안합니다.
+  document.getElementById('f_total_bottle_count').value = sourceQty;
+  const perBox = parseInt(document.getElementById('f_qty_per_box').value, 10) || 0;
+  if (perBox > 0 && sourceQty > 0) {
+    document.getElementById('f_box_count').value = Math.floor(sourceQty / perBox);
   }
   closeLotPicker();
 }

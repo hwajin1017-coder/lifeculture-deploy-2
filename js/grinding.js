@@ -48,17 +48,17 @@ function filterLotPicker() {
       <td>${r.product_name||'-'}</td>
       <td>${numFormat(r.roasted_qty,2)} kg</td>
       <td>${qualityBadge(r.quality_result)}</td>
-      <td><button class="btn btn-primary btn-sm" onclick="selectLot('${r.lot_no}','${(r.product_name||'').replace(/'/g,"\\'")}')">선택</button></td>
+      <td><button class="btn btn-primary btn-sm" onclick="selectLot('${r.lot_no}','${(r.product_name||'').replace(/'/g,"\\'")}',${Number(r.roasted_qty)||0})">선택</button></td>
     </tr>
   `).join('') : '<tr><td colspan="6" class="empty-msg">로스팅 이력 없음</td></tr>';
 }
 
-function selectLot(lotNo, productName) {
+function selectLot(lotNo, productName, roastedQty) {
   document.getElementById('f_roast_lot_no').value = lotNo;
   document.getElementById('f_product_name_linked').value = productName;
-  if (!document.getElementById('f_product_name').value) {
-    document.getElementById('f_product_name').value = productName;
-  }
+  document.getElementById('f_product_name').value = productName;
+  document.getElementById('f_input_qty').value = Number(roastedQty || 0).toFixed(2);
+  calcYield();
   closeLotPicker();
 }
 

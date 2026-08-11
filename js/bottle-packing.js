@@ -69,13 +69,9 @@ function filterLotPicker() {
 
 function selectLot(lotNo, productName, extractQty) {
   document.getElementById('f_extract_lot_no').value = lotNo;
-  if (!document.getElementById('f_product_name').value) {
-    document.getElementById('f_product_name').value = productName;
-  }
-  if (!document.getElementById('f_fill_qty').value) {
-    document.getElementById('f_fill_qty').value = extractQty;
-    calcBottleCount();
-  }
+  document.getElementById('f_product_name').value = productName;
+  document.getElementById('f_fill_qty').value = Number(extractQty || 0).toFixed(2);
+  calcBottleCount();
   closeLotPicker();
 }
 
