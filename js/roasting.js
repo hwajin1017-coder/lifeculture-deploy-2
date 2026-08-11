@@ -41,25 +41,7 @@ async function initLotNo() {
 }
 
 async function generateProcessLotNo(prefix, workDate) {
-  try {
-    const d = workDate ? new Date(workDate) : new Date();
-    const yy = String(d.getFullYear()).slice(2);
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const dateStr = `${yy}${mm}${dd}`;
-    const tableMap = { RST: 'roasting_log', GRD: 'grinding_log', EXT: 'extraction_log', BTL: 'bottle_packing_log', BOX: 'box_packing_log' };
-    const table = tableMap[prefix] || 'roasting_log';
-    const data = await apiGetAll(table);
-    const existing = data.filter(r => r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`));
-    const seq = String(existing.length + 1).padStart(2, '0');
-    return `${prefix}-${dateStr}-${seq}`;
-  } catch(e) {
-    const d = workDate ? new Date(workDate) : new Date();
-    const yy = String(d.getFullYear()).slice(2);
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `RST-${yy}${mm}${dd}-01`;
-  }
+  return await generateLotNo(prefix, workDate);
 }
 
 // 원료수불부 출고 Lot No 생성 (로스팅 자동 출고용)

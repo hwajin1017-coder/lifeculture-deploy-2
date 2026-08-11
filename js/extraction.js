@@ -249,7 +249,7 @@ async function saveEdit() {
     notes: document.getElementById('e_notes').value,
   };
   try {
-    await apiPut('extraction_log', editingId, updated);
+    await apiPatch('extraction_log', editingId, updated);
     showToast('수정 완료!', 'success');
     closeEditModal();
     await loadData();

@@ -240,7 +240,7 @@ async function saveEdit() {
     notes: document.getElementById('e_notes').value,
   };
   try {
-    await apiPut('box_packing_log', editingId, updated);
+    await apiPatch('box_packing_log', editingId, updated);
     showToast('수정 완료!', 'success');
     closeEditModal();
     await loadData();

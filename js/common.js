@@ -37,45 +37,51 @@ function numFormat(n, decimals = 2) {
 // ===========================
 // prefix: 'RST'|'GRD'|'EXT'|'BTL'|'BOX'|'RM' 등
 // workDate: 'YYYY-MM-DD' 형식 (없으면 오늘)
+function getLotDateYYMMDD(workDate) {
+  const value = String(workDate || '').trim();
+  const digits = value.replace(/[^0-9]/g, '');
+  if (/^20\d{6}$/.test(digits)) return digits.slice(2);
+  if (/^\d{6}$/.test(digits)) return digits;
+  const d = new Date(value || Date.now());
+  if (Number.isNaN(d.getTime())) throw new Error('유효하지 않은 작업일자입니다.');
+  return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function normalizeProcessLotNo(lotNo) {
+  const value = String(lotNo || '').trim();
+  const match = value.match(/^(RST|ROAST|GRD|GRIND|EXT|BTL|BOX)-(20\d{6}|\d{6})-(\d+)$/i);
+  if (!match) return value;
+  const prefixMap = { ROAST: 'RST', GRIND: 'GRD' };
+  const prefix = prefixMap[match[1].toUpperCase()] || match[1].toUpperCase();
+  const dateStr = match[2].slice(-6);
+  return `${prefix}-${dateStr}-${String(parseInt(match[3], 10) || 1).padStart(2, '0')}`;
+}
+
 async function generateLotNo(prefix, workDate) {
-  // 작업일자 기반 날짜 문자열 (YYMMDD)
-  const baseDate = workDate ? new Date(workDate) : new Date();
-  const yy = String(baseDate.getFullYear()).slice(2);
-  const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
-  const dd = String(baseDate.getDate()).padStart(2, '0');
-  const dateStr = `${yy}${mm}${dd}`;
-
-  // 접두어 → 테이블 매핑
+  const prefixMap = { ROAST: 'RST', GRIND: 'GRD' };
+  const normalizedPrefix = prefixMap[String(prefix || '').toUpperCase()] || String(prefix || '').toUpperCase();
+  const dateStr = getLotDateYYMMDD(workDate);
   const tableMap = {
-    'RM': 'raw_materials', 'IM': 'raw_materials', 'OM': 'raw_materials',
-    'RST': 'roasting_log', 'ROAST': 'roasting_log',
-    'GRD': 'grinding_log', 'GRIND': 'grinding_log',
-    'EXT': 'extraction_log',
-    'BTL': 'bottle_packing_log',
-    'BOX': 'box_packing_log',
+    RM: 'raw_materials', IM: 'raw_materials', OM: 'raw_materials',
+    RST: 'roasting_log', GRD: 'grinding_log', EXT: 'extraction_log',
+    BTL: 'bottle_packing_log', BOX: 'box_packing_log',
   };
-  const tableName = tableMap[prefix] || '';
+  const tableName = tableMap[normalizedPrefix];
+  if (!tableName || typeof apiGetAll !== 'function') throw new Error('Lot No 생성 서비스를 준비할 수 없습니다.');
 
-  try {
-    if (!tableName) throw new Error('unknown prefix');
-    const res = await fetch(`tables/${tableName}?limit=500`);
-    const data = await res.json();
-    const rows = data.data || [];
-    // 해당 날짜 + 접두어로 시작하는 Lot 개수로 순번 결정
-    const existing = rows.filter(r =>
-      r.lot_no && r.lot_no.startsWith(`${prefix}-${dateStr}`)
-    );
-    const seq = String(existing.length + 1).padStart(2, '0');
-    return `${prefix}-${dateStr}-${seq}`;
-  } catch (e) {
-    const rand = String(Math.floor(Math.random() * 99) + 1).padStart(2, '0');
-    return `${prefix}-${dateStr}-${rand}`;
-  }
+  const rows = await apiGetAll(tableName);
+  const lotPattern = new RegExp(`^${normalizedPrefix}-(?:${dateStr}|20${dateStr})-(\\d+)$`, 'i');
+  const maxSequence = rows.reduce((max, row) => {
+    const normalizedLot = normalizeProcessLotNo(row.lot_no);
+    const match = normalizedLot.match(lotPattern);
+    return match ? Math.max(max, parseInt(match[1], 10) || 0) : max;
+  }, 0);
+  return `${normalizedPrefix}-${dateStr}-${String(maxSequence + 1).padStart(2, '0')}`;
 }
 
 // 공정별 Lot 번호 생성 (공정코드-날짜-순번)
-async function generateProcessLotNo(processCode) {
-  return await generateLotNo(processCode);
+async function generateProcessLotNo(processCode, workDate) {
+  return await generateLotNo(processCode, workDate);
 }
 
 // ===========================
