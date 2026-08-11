@@ -47,7 +47,7 @@ function calcActual() {
 
 async function openLotPicker() {
   const res = await apiGet('extraction_log', { limit: 100 });
-  extractLotData = (res.data||[]).sort((a,b) => b.created_at - a.created_at);
+  extractLotData = (res.data||[]).sort(compareProductionLotsDescending);
   filterLotPicker();
   document.getElementById('lotPickerModal').classList.add('show');
 }

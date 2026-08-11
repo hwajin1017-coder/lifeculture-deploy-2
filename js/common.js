@@ -62,6 +62,17 @@ function getLotNoSequence(lotNo) {
   return match ? (parseInt(match[1], 10) || 0) : 0;
 }
 
+function compareProductionLotsDescending(a, b) {
+  const dateA = String(a?.work_date || '').replace(/[^0-9]/g, '');
+  const dateB = String(b?.work_date || '').replace(/[^0-9]/g, '');
+  if (dateB !== dateA) return dateB.localeCompare(dateA);
+  const seqDiff = getLotNoSequence(b?.lot_no) - getLotNoSequence(a?.lot_no);
+  if (seqDiff) return seqDiff;
+  const timeA = a?.createdAt?.toMillis?.() || a?.createdAt?.seconds || a?.created_at || 0;
+  const timeB = b?.createdAt?.toMillis?.() || b?.createdAt?.seconds || b?.created_at || 0;
+  return timeB - timeA;
+}
+
 async function generateLotNo(prefix, workDate) {
   const prefixMap = { ROAST: 'RST', GRIND: 'GRD' };
   const normalizedPrefix = prefixMap[String(prefix || '').toUpperCase()] || String(prefix || '').toUpperCase();

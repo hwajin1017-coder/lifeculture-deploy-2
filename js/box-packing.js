@@ -36,7 +36,7 @@ function calcTotal() {
 
 async function openLotPicker() {
   const res = await apiGet('bottle_packing_log', { limit: 100 });
-  bottleLotData = (res.data||[]).sort((a,b) => b.created_at - a.created_at);
+  bottleLotData = (res.data||[]).sort(compareProductionLotsDescending);
   filterLotPicker();
   document.getElementById('lotPickerModal').classList.add('show');
 }

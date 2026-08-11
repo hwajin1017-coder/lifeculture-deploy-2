@@ -33,7 +33,7 @@ function calcYield() {
 
 async function openLotPicker() {
   const res = await apiGet('roasting_log', { limit: 100 });
-  roastLotData = (res.data||[]).sort((a,b) => b.created_at - a.created_at);
+  roastLotData = (res.data||[]).sort(compareProductionLotsDescending);
   filterLotPicker();
   document.getElementById('lotPickerModal').classList.add('show');
 }
