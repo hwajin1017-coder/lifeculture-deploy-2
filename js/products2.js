@@ -465,8 +465,9 @@ function p2CloseDetail() {
 
 function p2EditFromDetail() {
   if (_p2DetailId) {
+    var editId = _p2DetailId; // id 미리 저장 (p2CloseDetail이 _p2DetailId를 null로 초기화하므로)
     p2CloseDetail();
-    p2OpenModal(_p2DetailId);
+    p2OpenModal(editId);
   }
 }
 
