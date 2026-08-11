@@ -599,3 +599,40 @@ async function rebuildKpiCache() {
     showToast('KPI 캐시 재구축 실패: ' + e.message, 'error');
   }
 }
+
+// ===========================
+// 생산 탭 제품명 드롭다운 선택 공통 함수
+// ===========================
+function toggleProductDropdown(inputId, dropdownId) {
+  var dropdown = document.getElementById(dropdownId);
+  if (!dropdown) return;
+  var isVisible = dropdown.style.display !== 'none';
+  // 다른 드롭다운 모두 닫기
+  document.querySelectorAll('[id^="productDropdown_"]').forEach(function(el) {
+    el.style.display = 'none';
+  });
+  dropdown.style.display = isVisible ? 'none' : 'block';
+}
+
+function selectProductName(name, inputId, dropdownId, triggerAutoDetect) {
+  var input = document.getElementById(inputId);
+  if (input) {
+    input.value = name;
+    // 로스팅 탭 블렌딩 자동 감지 연동
+    if (triggerAutoDetect && typeof autoDetectBlending === 'function') {
+      autoDetectBlending(name);
+    }
+  }
+  var dropdown = document.getElementById(dropdownId);
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+// 외부 클릭 시 제품명 드롭다운 닫기
+document.addEventListener('click', function(e) {
+  var id = e.target.id || '';
+  if (!id.startsWith('f_product_name')) {
+    document.querySelectorAll('[id^="productDropdown_"]').forEach(function(el) {
+      el.style.display = 'none';
+    });
+  }
+});
