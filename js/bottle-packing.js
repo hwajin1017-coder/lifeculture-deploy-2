@@ -135,7 +135,11 @@ function resetForm() {
 async function loadData() {
   try {
     const res = await apiGet('bottle_packing_log', { limit: 100 });
-    allData = (res.data||[]).sort((a,b) => b.created_at - a.created_at);
+    allData = (res.data||[]).sort((a,b) => {
+      const da = a.work_date||''; const db2 = b.work_date||'';
+      if (db2 > da) return 1; if (db2 < da) return -1;
+      return (b.created_at||0) - (a.created_at||0);
+    });
     filteredData = [...allData];
     currentPage = 1;
     renderTable();

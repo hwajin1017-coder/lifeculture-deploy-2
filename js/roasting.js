@@ -426,7 +426,13 @@ function resetForm() {
 async function loadData() {
   try {
     const data = await apiGetAll('roasting_log');
-    allData = data.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    allData = data.sort((a, b) => {
+      const da = a.work_date || a.created_at || '';
+      const db2 = b.work_date || b.created_at || '';
+      if (db2 > da) return 1;
+      if (db2 < da) return -1;
+      return (b.created_at || 0) - (a.created_at || 0);
+    });
     filteredData = [...allData];
     currentPage = 1;
     renderTable();
