@@ -9,6 +9,7 @@ var _p2EditingId = null;
 var _p2DetailId = null;
 var _p2BoxRowCount = 1;
 var _p2PendingRows = []; // 엑셀 미리보기 임시 데이터
+var _p2VendorCache = []; // 거래처 정보 캐시
 
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', function() {
@@ -30,8 +31,9 @@ document.addEventListener('DOMContentLoaded', function() {
 // ── 전체 로드 ──
 async function p2LoadAll() {
   try {
-    var data = await apiGetAll('products2');
-    _p2AllData = data || [];
+    var results = await Promise.all([apiGetAll('products2'), apiGetAll('vendors')]);
+    _p2AllData = results[0] || [];
+    _p2VendorCache = results[1] || [];
     p2RenderKpi();
     p2RenderTable();
   } catch(e) {
@@ -39,6 +41,64 @@ async function p2LoadAll() {
     showToast('데이터 로드 실패: ' + e.message, 'error');
   }
 }
+
+// ── 협력사 코드 자동 생성 (SUP-NNN) ──
+async function p2GenerateSupplierCode() {
+  try {
+    var all = await apiGetAll('products2');
+    var codes = (all || []).map(function(r) { return r.supplier_code || ''; });
+    var maxSeq = 0;
+    codes.forEach(function(c) {
+      var m = c.match(/^SUP-(\d+)$/);
+      if (m) { var n = parseInt(m[1], 10); if (n > maxSeq) maxSeq = n; }
+    });
+    return 'SUP-' + String(maxSeq + 1).padStart(3, '0');
+  } catch(e) {
+    return 'SUP-' + String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
+  }
+}
+
+// ── 거래처 자동완성 ──
+function p2VendorSearch(q) {
+  var dropdown = document.getElementById('p2VendorDropdown');
+  if (!dropdown) return;
+  if (!q || q.length < 1) { dropdown.style.display = 'none'; return; }
+  var lq = q.toLowerCase();
+  var matches = _p2VendorCache.filter(function(v) {
+    return (v.vendor_name || '').toLowerCase().includes(lq) ||
+           (v.vendor_code || '').toLowerCase().includes(lq);
+  }).slice(0, 8);
+  if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = matches.map(function(v) {
+    return '<div onclick="p2SelectVendor(' + JSON.stringify(v).replace(/"/g, '&quot;') + ')" '
+      + 'style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px" '
+      + 'onmouseover="this.style.background=\'#f0f8f1\'" onmouseout="this.style.background=\'\'">'
+      + '<strong>' + (v.vendor_name || '') + '</strong>'
+      + '<span style="margin-left:8px;font-size:11px;color:#888">' + (v.vendor_code || '') + '</span>'
+      + '</div>';
+  }).join('');
+  dropdown.style.display = 'block';
+}
+
+function p2SelectVendor(v) {
+  var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('p2SupplierName', v.vendor_name);
+  set('p2SupplierAddr', v.address);
+  set('p2SupplierContact', v.contact_person);
+  set('p2SupplierPhone', v.contact_phone);
+  // 거래처 코드를 협력사 코드로 매핑
+  set('p2SupplierCode', v.vendor_code);
+  var dropdown = document.getElementById('p2VendorDropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click', function(e) {
+  var dropdown = document.getElementById('p2VendorDropdown');
+  if (dropdown && !dropdown.contains(e.target) && e.target.id !== 'p2SupplierName') {
+    dropdown.style.display = 'none';
+  }
+});
 
 // ── KPI ──
 function p2RenderKpi() {
@@ -139,6 +199,11 @@ function p2OpenModal(id) {
     }
   } else {
     if (title) title.innerHTML = '<i class="fas fa-tag" style="color:var(--primary)"></i> 신규 제품 등록';
+    // 협력사 코드 자동 생성
+    p2GenerateSupplierCode().then(function(code) {
+      var el = document.getElementById('p2SupplierCode');
+      if (el) el.value = code;
+    });
   }
   var modal = document.getElementById('p2Modal');
   if (modal) modal.style.display = 'flex';

@@ -312,12 +312,13 @@
             <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">🏢 협력사 정보</div>
             <div class="form-grid form-grid-4">
               <div class="form-group">
-                <label>협력사코드</label>
-                <input type="text" id="p2SupplierCode" placeholder="협력사코드" />
+                <label>협력사코드 <span style="font-size:10px;color:#888;font-weight:400">(\uc790\ub3d9\uc0dd\uc131)</span></label>
+                <input type="text" id="p2SupplierCode" placeholder="\uc790\ub3d9 \uc0dd\uc131" readonly style="background:#f5f5f5;color:#666;cursor:default" />
               </div>
-              <div class="form-group span-3">
-                <label>협력사명</label>
-                <input type="text" id="p2SupplierName" placeholder="협력사명" />
+              <div class="form-group span-3" style="position:relative">
+                <label>\ud611\ub825\uc0ac\uba85 <span style="font-size:10px;color:#2C5F2E;font-weight:400">(\uac70\ub798\uc798 \uc5f0\ub3d9)</span></label>
+                <input type="text" id="p2SupplierName" placeholder="\ud611\ub825\uc0ac\uba85 \uc785\ub825 \ub610\ub294 \uac70\ub798\uc798\uc5d0\uc11c \uac80\uc0c9" autocomplete="off" oninput="p2VendorSearch(this.value)" />
+                <div id="p2VendorDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:3000;max-height:200px;overflow-y:auto"></div>
               </div>
               <div class="form-group span-2">
                 <label>주소</label>
