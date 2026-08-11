@@ -363,6 +363,27 @@ async function p2HandleSubmit(e) {
   if (!data.own_code) { showToast('당사 분류코드를 입력하세요.', 'error'); return; }
   if (!data.product_name) { showToast('상품명을 입력하세요.', 'error'); return; }
 
+  // 중복 체크 (신규 등록 시만, 수정 시에는 자신 제외)
+  var dupCode = _p2AllData.find(function(r) {
+    return r.id !== _p2EditingId &&
+           data.product_code && r.product_code &&
+           r.product_code.trim().toLowerCase() === data.product_code.trim().toLowerCase();
+  });
+  if (dupCode) {
+    showToast('상품코드 [' + data.product_code + ']는 이미 등록된 코드입니다.', 'error');
+    document.getElementById('p2ProductCode') && document.getElementById('p2ProductCode').focus();
+    return;
+  }
+  var dupName = _p2AllData.find(function(r) {
+    return r.id !== _p2EditingId &&
+           r.product_name.trim().toLowerCase() === data.product_name.trim().toLowerCase();
+  });
+  if (dupName) {
+    showToast('상품명 [' + data.product_name + ']은(는) 이미 등록된 상품명입니다.', 'error');
+    document.getElementById('p2ProductName') && document.getElementById('p2ProductName').focus();
+    return;
+  }
+
   try {
     var prevName = null;
     if (_p2EditingId) {
