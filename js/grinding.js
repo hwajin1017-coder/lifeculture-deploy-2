@@ -4,6 +4,7 @@ let filteredData = [];
 let currentPage = 1;
 const pageSize = 15;
 let roastLotData = [];
+let editingId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('f_work_date').value = today();
@@ -156,7 +157,10 @@ function renderTable() {
         <td>${r.grind_size||'-'}</td>
         <td>${r.worker||'-'}</td>
         <td>${qualityBadge(r.quality_result)}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteRow('${r.id}')"><i class="fas fa-trash"></i></button></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" style="background:#f0f4ff;color:#6c5ce7;border:1px solid #d0d8ff;margin-right:4px" onclick="openEditModal('${r.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRow('${r.id}')"><i class="fas fa-trash"></i></button>
+        </td>
       </tr>
     `).join('');
   }
@@ -175,6 +179,58 @@ function renderPagination() {
   pg.innerHTML=html;
 }
 function changePage(p){currentPage=p;renderTable();}
+
+function openEditModal(id) {
+  editingId = id;
+  const rec = allData.find(r => r.id === id);
+  if (!rec) return;
+  document.getElementById('editModalBody').innerHTML = `
+    <div class="form-grid form-grid-2" style="gap:12px">
+      <div class="form-group"><label>작업일자</label><input type="date" id="e_work_date" value="${rec.work_date||''}" class="form-control" /></div>
+      <div class="form-group"><label>제품명</label><input type="text" id="e_product_name" value="${(rec.product_name||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>로스팅 Lot No</label><input type="text" id="e_roast_lot_no" value="${rec.roast_lot_no||''}" class="form-control" /></div>
+      <div class="form-group"><label>작업자</label><input type="text" id="e_worker" value="${(rec.worker||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>투입량 (kg)</label><input type="number" id="e_input_qty" value="${rec.input_qty||0}" step="0.01" class="form-control" /></div>
+      <div class="form-group"><label>분쇄량 (kg)</label><input type="number" id="e_ground_qty" value="${rec.ground_qty||0}" step="0.01" class="form-control" /></div>
+      <div class="form-group"><label>분쇄도</label><input type="text" id="e_grind_size" value="${rec.grind_size||''}" class="form-control" /></div>
+      <div class="form-group"><label>분쇄 장비</label><input type="text" id="e_grinder_machine" value="${(rec.grinder_machine||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>품질판정</label><select id="e_quality_result" class="form-control"><option ${rec.quality_result==='적합'?'selected':''}>적합</option><option ${rec.quality_result==='부적합'?'selected':''}>부적합</option><option ${rec.quality_result==='재작업'?'selected':''}>재작업</option></select></div>
+      <div class="form-group"><label>비고</label><input type="text" id="e_notes" value="${(rec.notes||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+    </div>
+  `;
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingId = null;
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const updated = {
+    work_date: document.getElementById('e_work_date').value,
+    product_name: document.getElementById('e_product_name').value,
+    roast_lot_no: document.getElementById('e_roast_lot_no').value,
+    worker: document.getElementById('e_worker').value,
+    input_qty: parseFloat(document.getElementById('e_input_qty').value)||0,
+    ground_qty: parseFloat(document.getElementById('e_ground_qty').value)||0,
+    loss_qty: (parseFloat(document.getElementById('e_input_qty').value)||0) - (parseFloat(document.getElementById('e_ground_qty').value)||0),
+    yield_rate: (parseFloat(document.getElementById('e_input_qty').value)||0) > 0 ? (((parseFloat(document.getElementById('e_ground_qty').value)||0) / (parseFloat(document.getElementById('e_input_qty').value)||0)) * 100).toFixed(1) : 0,
+    grind_size: document.getElementById('e_grind_size').value,
+    grinder_machine: document.getElementById('e_grinder_machine').value,
+    quality_result: document.getElementById('e_quality_result').value,
+    notes: document.getElementById('e_notes').value,
+  };
+  try {
+    await apiPut('grinding_log', editingId, updated);
+    showToast('수정 완료!', 'success');
+    closeEditModal();
+    await loadData();
+  } catch(e) {
+    showToast('수정 실패: ' + e.message, 'error');
+  }
+}
 
 async function deleteRow(id) {
   showConfirm('이 분쇄 생산 기록을 삭제하시겠습니까?', async () => {

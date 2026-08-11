@@ -4,6 +4,7 @@ let filteredData = [];
 let currentPage = 1;
 const pageSize = 15;
 let extractLotData = [];
+let editingId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('f_work_date').value = today();
@@ -179,7 +180,10 @@ function renderTable() {
         <td>${r.label_applied ? '<span class="badge badge-success">완료</span>' : '<span class="badge badge-warning">미부착</span>'}</td>
         <td>${r.worker||'-'}</td>
         <td>${qualityBadge(r.quality_result)}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteRow('${r.id}')"><i class="fas fa-trash"></i></button></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" style="background:#e8f4fd;color:#3498db;border:1px solid #aed6f1;margin-right:4px" onclick="openEditModal('${r.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRow('${r.id}')"><i class="fas fa-trash"></i></button>
+        </td>
       </tr>
     `).join('');
   }
@@ -198,6 +202,58 @@ function renderPagination() {
   pg.innerHTML=html;
 }
 function changePage(p){currentPage=p;renderTable();}
+
+function openEditModal(id) {
+  editingId = id;
+  const rec = allData.find(r => r.id === id);
+  if (!rec) return;
+  document.getElementById('editModalBody').innerHTML = `
+    <div class="form-grid form-grid-2" style="gap:12px">
+      <div class="form-group"><label>작업일자</label><input type="date" id="e_work_date" value="${rec.work_date||''}" class="form-control" /></div>
+      <div class="form-group"><label>제품명</label><input type="text" id="e_product_name" value="${(rec.product_name||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>추출 Lot No</label><input type="text" id="e_extract_lot_no" value="${rec.extract_lot_no||''}" class="form-control" /></div>
+      <div class="form-group"><label>작업자</label><input type="text" id="e_worker" value="${(rec.worker||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>충전량 (L)</label><input type="number" id="e_fill_qty" value="${rec.fill_qty||0}" step="0.01" class="form-control" /></div>
+      <div class="form-group"><label>병 용량 (mL)</label><input type="number" id="e_fill_volume" value="${rec.fill_volume||0}" step="1" class="form-control" /></div>
+      <div class="form-group"><label>생산병 수</label><input type="number" id="e_bottle_count" value="${rec.bottle_count||0}" class="form-control" /></div>
+      <div class="form-group"><label>실생산수</label><input type="number" id="e_actual_qty" value="${rec.actual_qty||0}" class="form-control" /></div>
+      <div class="form-group"><label>유통기한</label><input type="date" id="e_expiry_date" value="${rec.expiry_date||''}" class="form-control" /></div>
+      <div class="form-group"><label>품질판정</label><select id="e_quality_result" class="form-control"><option ${rec.quality_result==='적합'?'selected':''}>적합</option><option ${rec.quality_result==='부적합'?'selected':''}>부적합</option><option ${rec.quality_result==='재작업'?'selected':''}>재작업</option></select></div>
+      <div class="form-group"><label>비고</label><input type="text" id="e_notes" value="${(rec.notes||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+    </div>
+  `;
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingId = null;
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const updated = {
+    work_date: document.getElementById('e_work_date').value,
+    product_name: document.getElementById('e_product_name').value,
+    extract_lot_no: document.getElementById('e_extract_lot_no').value,
+    worker: document.getElementById('e_worker').value,
+    fill_qty: parseFloat(document.getElementById('e_fill_qty').value)||0,
+    fill_volume: parseFloat(document.getElementById('e_fill_volume').value)||0,
+    bottle_count: parseInt(document.getElementById('e_bottle_count').value)||0,
+    actual_qty: parseInt(document.getElementById('e_actual_qty').value)||0,
+    expiry_date: document.getElementById('e_expiry_date').value,
+    quality_result: document.getElementById('e_quality_result').value,
+    notes: document.getElementById('e_notes').value,
+  };
+  try {
+    await apiPut('bottle_packing_log', editingId, updated);
+    showToast('수정 완료!', 'success');
+    closeEditModal();
+    await loadData();
+  } catch(e) {
+    showToast('수정 실패: ' + e.message, 'error');
+  }
+}
 
 async function deleteRow(id) {
   showConfirm('이 병 포장 기록을 삭제하시겠습니까?', async () => {

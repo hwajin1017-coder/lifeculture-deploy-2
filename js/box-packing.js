@@ -4,6 +4,7 @@ let filteredData = [];
 let currentPage = 1;
 const pageSize = 15;
 let bottleLotData = [];
+let editingId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('f_work_date').value = today();
@@ -172,7 +173,10 @@ function renderTable() {
         <td>${r.shipped_box_count ? numFormat(r.shipped_box_count,0)+' box' : '-'}</td>
         <td>${r.worker||'-'}</td>
         <td>${qualityBadge(r.quality_result)}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteRow('${r.id}')"><i class="fas fa-trash"></i></button></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" style="background:#e8f4fd;color:#3498db;border:1px solid #aed6f1;margin-right:4px" onclick="openEditModal('${r.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRow('${r.id}')"><i class="fas fa-trash"></i></button>
+        </td>
       </tr>
     `).join('');
   }
@@ -191,6 +195,59 @@ function renderPagination() {
   pg.innerHTML=html;
 }
 function changePage(p){currentPage=p;renderTable();}
+
+function openEditModal(id) {
+  editingId = id;
+  const rec = allData.find(r => r.id === id);
+  if (!rec) return;
+  document.getElementById('editModalBody').innerHTML = `
+    <div class="form-grid form-grid-2" style="gap:12px">
+      <div class="form-group"><label>작업일자</label><input type="date" id="e_work_date" value="${rec.work_date||''}" class="form-control" /></div>
+      <div class="form-group"><label>제품명</label><input type="text" id="e_product_name" value="${(rec.product_name||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>병 포장 Lot No</label><input type="text" id="e_bottle_lot_no" value="${rec.bottle_lot_no||''}" class="form-control" /></div>
+      <div class="form-group"><label>작업자</label><input type="text" id="e_worker" value="${(rec.worker||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>박스당 입수</label><input type="number" id="e_qty_per_box" value="${rec.qty_per_box||0}" class="form-control" /></div>
+      <div class="form-group"><label>박스 수</label><input type="number" id="e_box_count" value="${rec.box_count||0}" class="form-control" /></div>
+      <div class="form-group"><label>불량 박스</label><input type="number" id="e_defect_box_count" value="${rec.defect_box_count||0}" class="form-control" /></div>
+      <div class="form-group"><label>출하 예정일</label><input type="date" id="e_scheduled_ship_date" value="${rec.scheduled_ship_date||''}" class="form-control" /></div>
+      <div class="form-group"><label>고객사</label><input type="text" id="e_customer" value="${(rec.customer||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+      <div class="form-group"><label>품질판정</label><select id="e_quality_result" class="form-control"><option ${rec.quality_result==='적합'?'selected':''}>적합</option><option ${rec.quality_result==='부적합'?'selected':''}>부적합</option><option ${rec.quality_result==='재작업'?'selected':''}>재작업</option></select></div>
+      <div class="form-group"><label>비고</label><input type="text" id="e_notes" value="${(rec.notes||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
+    </div>
+  `;
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingId = null;
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const updated = {
+    work_date: document.getElementById('e_work_date').value,
+    product_name: document.getElementById('e_product_name').value,
+    bottle_lot_no: document.getElementById('e_bottle_lot_no').value,
+    worker: document.getElementById('e_worker').value,
+    qty_per_box: parseInt(document.getElementById('e_qty_per_box').value)||0,
+    box_count: parseInt(document.getElementById('e_box_count').value)||0,
+    defect_box_count: parseInt(document.getElementById('e_defect_box_count').value)||0,
+    total_bottle_count: (parseInt(document.getElementById('e_box_count').value)||0) * (parseInt(document.getElementById('e_qty_per_box').value)||0),
+    scheduled_ship_date: document.getElementById('e_scheduled_ship_date').value,
+    customer: document.getElementById('e_customer').value,
+    quality_result: document.getElementById('e_quality_result').value,
+    notes: document.getElementById('e_notes').value,
+  };
+  try {
+    await apiPut('box_packing_log', editingId, updated);
+    showToast('수정 완료!', 'success');
+    closeEditModal();
+    await loadData();
+  } catch(e) {
+    showToast('수정 실패: ' + e.message, 'error');
+  }
+}
 
 async function deleteRow(id) {
   showConfirm('이 박스 포장 기록을 삭제하시겠습니까?', async () => {

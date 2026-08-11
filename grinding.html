@@ -247,6 +247,21 @@
     </div>
   </div>
 
+  <!-- 수정 모달 -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal" style="max-width:600px;width:95%">
+      <div class="modal-header">
+        <h3><i class="fas fa-edit" style="color:#6c5ce7"></i> 분쇄 생산일지 수정</h3>
+        <button class="modal-close" onclick="closeEditModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body" id="editModalBody"></div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:16px">
+        <button class="btn btn-secondary" onclick="closeEditModal()">취소</button>
+        <button class="btn" style="background:#6c5ce7;color:#fff;border:none" onclick="saveEdit()"><i class="fas fa-save"></i> 저장</button>
+      </div>
+    </div>
+  </div>
+
   <nav class="bottom-nav" id="bottomNav" style="background:#1e2329;">
     <a href="index.html" class="bottom-nav-item"><i class="fas fa-home"></i><span>홈</span></a>
     <button class="bottom-nav-item" onclick="openTeamMenu('logistics')"><i class="fas fa-truck"></i><span>물류팀</span></button>
