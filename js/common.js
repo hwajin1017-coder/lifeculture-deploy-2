@@ -57,6 +57,11 @@ function normalizeProcessLotNo(lotNo) {
   return `${prefix}-${dateStr}-${String(parseInt(match[3], 10) || 1).padStart(2, '0')}`;
 }
 
+function getLotNoSequence(lotNo) {
+  const match = String(lotNo || '').match(/-(\d+)$/);
+  return match ? (parseInt(match[1], 10) || 0) : 0;
+}
+
 async function generateLotNo(prefix, workDate) {
   const prefixMap = { ROAST: 'RST', GRIND: 'GRD' };
   const normalizedPrefix = prefixMap[String(prefix || '').toUpperCase()] || String(prefix || '').toUpperCase();

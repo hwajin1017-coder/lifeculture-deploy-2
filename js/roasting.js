@@ -413,7 +413,11 @@ async function loadData() {
       const db2 = b.work_date || b.created_at || '';
       if (db2 > da) return 1;
       if (db2 < da) return -1;
-      return (b.created_at || 0) - (a.created_at || 0);
+      const seqDiff = getLotNoSequence(b.lot_no) - getLotNoSequence(a.lot_no);
+      if (seqDiff) return seqDiff;
+      const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds || a.created_at || 0;
+      const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds || b.created_at || 0;
+      return tb - ta;
     });
     filteredData = [...allData];
     currentPage = 1;
