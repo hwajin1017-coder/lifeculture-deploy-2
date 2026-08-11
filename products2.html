@@ -475,6 +475,47 @@
   <!-- 상세보기 배경 오버레이 -->
   <div id="p2DetailOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:1999" onclick="p2CloseDetail()"></div>
 
+  <!-- 모바일 하단 내비게이션 -->
+  <nav class="bottom-nav" style="background:#1e2329;">
+    <a class="bottom-nav-item" href="index.html"><i class="fas fa-home"></i><span>홈</span></a>
+    <button class="bottom-nav-item" onclick="openTeamMenu('logistics')"><i class="fas fa-truck"></i><span>물류팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('production')"><i class="fas fa-industry"></i><span>생산팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('sales')"><i class="fas fa-shopping-cart"></i><span>영업팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('quality')"><i class="fas fa-search"></i><span>품질관리</span></button>
+  </nav>
+
+  <!-- 팀 메뉴 오버레이 -->
+  <div class="more-menu-overlay" id="teamMenuOverlay" onclick="closeTeamMenu()"></div>
+  <div class="more-menu-sheet" id="teamMenuSheet" style="display:none;background:#1e2329;">
+    <div class="more-menu-handle"></div>
+    <div id="teamMenu_logistics" style="display:none">
+      <div class="more-menu-title">물류팀</div>
+      <a class="more-menu-item" href="materials-master.html" onclick="closeTeamMenu()"><i class="fas fa-cubes" style="background:#e8f4fd;color:#2980b9"></i>원부재료 마스터</a>
+      <a class="more-menu-item" href="raw-materials.html" onclick="closeTeamMenu()"><i class="fas fa-box-open" style="background:#fef9e7;color:#d68910"></i>원료수불부 (자체생산)</a>
+      <a class="more-menu-item" href="vendors.html" onclick="closeTeamMenu()"><i class="fas fa-handshake" style="background:#eafaf1;color:#27ae60"></i>거래처 정보</a>
+      <a class="more-menu-item" href="logistics.html" onclick="closeTeamMenu()"><i class="fas fa-truck" style="background:#f0f4ff;color:#3498db"></i>물류관리 (수입/OEM/자체)</a>
+      <a class="more-menu-item" href="logistics2.html" onclick="closeTeamMenu()"><i class="fas fa-warehouse" style="background:#f0fff4;color:#2C5F2E"></i>물류관리2 (일반/저온창고)</a>
+    </div>
+    <div id="teamMenu_production" style="display:none">
+      <div class="more-menu-title">생산팀 — 생산일지</div>
+      <a class="more-menu-item" href="roasting.html" onclick="closeTeamMenu()"><i class="fas fa-fire" style="background:#fff0ec;color:#e17055"></i>로스팅 생산일지</a>
+      <a class="more-menu-item" href="grinding.html" onclick="closeTeamMenu()"><i class="fas fa-cog" style="background:#f0f4ff;color:#6c5ce7"></i>분쇄 생산일지</a>
+      <a class="more-menu-item" href="extraction.html" onclick="closeTeamMenu()"><i class="fas fa-tint" style="background:#e8f4fd;color:#3498db"></i>추출 생산일지</a>
+      <a class="more-menu-item" href="bottle-packing.html" onclick="closeTeamMenu()"><i class="fas fa-wine-bottle" style="background:#e8f8f5;color:#1abc9c"></i>제품(병) 포장일지</a>
+      <a class="more-menu-item" href="box-packing.html" onclick="closeTeamMenu()"><i class="fas fa-boxes" style="background:#eafaf1;color:#27ae60"></i>완제품(박스) 포장일지</a>
+    </div>
+    <div id="teamMenu_sales" style="display:none">
+      <div class="more-menu-title">영업팀</div>
+      <a class="more-menu-item" href="products.html" onclick="closeTeamMenu()"><i class="fas fa-tag" style="background:#fef9e7;color:#d68910"></i>제품마스터정보</a>
+      <a class="more-menu-item" href="products2.html" onclick="closeTeamMenu()"><i class="fas fa-tags" style="background:#f0fff4;color:#2C5F2E"></i>제품마스터정보2</a>
+      <a class="more-menu-item" href="sales.html" onclick="closeTeamMenu()"><i class="fas fa-shopping-cart" style="background:#f8d7da;color:#c0392b"></i>온라인몰 판매</a>
+    </div>
+    <div id="teamMenu_quality" style="display:none">
+      <div class="more-menu-title">품질관리</div>
+      <a class="more-menu-item" href="traceability.html" onclick="closeTeamMenu()"><i class="fas fa-search" style="background:#f0f4ff;color:#8e44ad"></i>Lot 역추적</a>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
