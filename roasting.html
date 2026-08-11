@@ -387,15 +387,15 @@
           <input type="text" id="rawLotSearch" placeholder="품목명, Lot No 검색..." oninput="filterRawLots()" />
         </div>
         <div class="table-wrap" style="overflow-x:auto">
-          <table style="table-layout:fixed;width:100%;min-width:600px">
+          <table style="table-layout:auto;width:100%;min-width:600px">
             <colgroup>
-              <col style="width:160px">
-              <col style="width:auto">
+              <col style="width:150px">
+              <col style="min-width:160px">
               <col style="width:90px">
               <col style="width:100px">
-              <col style="width:130px">
+              <col style="width:140px">
               <col style="width:50px">
-              <col style="width:70px">
+              <col style="width:60px">
             </colgroup>
             <thead><tr><th>Lot No</th><th>생두명</th><th>입고일</th><th>소비기한</th><th>재고 (입고-출고)</th><th>단위</th><th>선택</th></tr></thead>
             <tbody id="rawLotTableBody"><tr><td colspan="7" class="empty-msg"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr></tbody>

@@ -242,7 +242,7 @@ function filterRawLots() {
       <td style="overflow:hidden">
         <span style="display:inline-block;background:#eafaf1;color:#27ae60;border:1px solid #a9dfbf;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.lot_no}</span>
       </td>
-      <td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.item_name || '-'}</td>
+      <td style="font-weight:600;min-width:160px">${r.item_name || '-'}</td>
       <td style="font-size:12px;white-space:nowrap">${r.receive_date || '-'}</td>
       <td style="font-size:12px;white-space:nowrap">${r.expiry_date || '-'}</td>
       <td style="text-align:right">
