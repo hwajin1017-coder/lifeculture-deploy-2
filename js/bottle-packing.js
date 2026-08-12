@@ -40,9 +40,10 @@ function calcBottleCount() {
 }
 
 function calcActual() {
-  const total = parseInt(document.getElementById('f_bottle_count').value)||0;
-  const defect = parseInt(document.getElementById('f_defect_count').value)||0;
-  document.getElementById('f_actual_qty').value = total - defect;
+  const completedQty = parseInt(document.getElementById('f_bottle_count').value, 10) || 0;
+  // 실 수량은 판매·병재고로 잡히는 실제 완성 병 수와 동일합니다.
+  // 불량 병 수는 병 포장재 Lot 재고 차감에 별도로 포함합니다.
+  document.getElementById('f_actual_qty').value = completedQty;
 }
 
 async function openLotPicker() {
@@ -77,6 +78,57 @@ function selectLot(lotNo, productName, extractQty) {
 
 function closeLotPicker() { document.getElementById('lotPickerModal').classList.remove('show'); }
 
+// 병 포장재 Lot 재고 차감: 실제 완성 병 수 + 불량 병 수는 모두 병 포장재를 사용한 수량입니다.
+async function syncBottleLotUsage(record, productionLogId) {
+  const sourceLot = String(record.bottle_lot_no || '').trim();
+  const completedQty = parseInt(record.bottle_count, 10) || 0;
+  const defectQty = parseInt(record.defect_count, 10) || 0;
+  const usageQty = completedQty + defectQty;
+  const existing = (await apiGetWhere('raw_materials', 'reference_lot', '==', record.lot_no))
+    .filter(r => r.out_purpose === '병 포장 투입');
+
+  // 병 Lot 또는 사용수량이 없으면, 기존 연동 출고가 있을 때만 삭제하여 재고를 복원합니다.
+  if (!sourceLot || usageQty <= 0) {
+    for (const row of existing) await apiDelete('raw_materials', row.id);
+    return;
+  }
+
+  const sourceRows = await apiGetWhere('raw_materials', 'lot_no', '==', sourceLot);
+  const source = sourceRows.find(r => r.transaction_type === '입고');
+  if (!source) {
+    showToast(`⚠ 병 Lot ${sourceLot}의 원료수불부 입고 기록을 찾지 못해 재고 차감은 생략되었습니다.`, 'warning');
+    return;
+  }
+
+  const usageRecord = {
+    lot_no: `OUT-${record.lot_no}`,
+    transaction_type: '출고',
+    receive_date: record.work_date,
+    item_code: source.item_code || sourceLot.split('-')[0] || '',
+    item_name: source.item_name || '병 포장재',
+    item_type: source.item_type || '포장재',
+    unit: source.unit || 'ea',
+    receive_qty: 0,
+    used_qty: usageQty,
+    out_qty: usageQty,
+    balance: 0,
+    source_lot: sourceLot,
+    reference_lot: record.lot_no,
+    production_log_id: productionLogId || '',
+    out_purpose: '병 포장 투입',
+    manager: record.worker || '',
+    notes: `병 포장 사용: 실제 완성 ${completedQty}ea + 불량 ${defectQty}ea (${record.lot_no})`,
+    qc_result: '합격',
+  };
+
+  if (existing.length) {
+    await apiPatch('raw_materials', existing[0].id, usageRecord);
+    for (const duplicate of existing.slice(1)) await apiDelete('raw_materials', duplicate.id);
+  } else {
+    await apiPost('raw_materials', usageRecord);
+  }
+}
+
 async function handleSubmit(e) {
   e.preventDefault();
   const lot = document.getElementById('lotDisplay').dataset.lot || document.getElementById('lotDisplay').textContent;
@@ -107,7 +159,8 @@ async function handleSubmit(e) {
   submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
 
   try {
-    await apiPost('bottle_packing_log', record);
+    const saved = await apiPost('bottle_packing_log', record);
+    await syncBottleLotUsage(record, saved.id);
     showToast(`✅ 병 포장 등록 완료! Lot: ${lot}`, 'success');
     resetForm();
     await loadData();
@@ -212,11 +265,13 @@ function openEditModal(id) {
       <div class="form-group"><label>작업일자</label><input type="date" id="e_work_date" value="${rec.work_date||''}" class="form-control" /></div>
       <div class="form-group"><label>제품명</label><input type="text" id="e_product_name" value="${(rec.product_name||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
       <div class="form-group"><label>추출 Lot No</label><input type="text" id="e_extract_lot_no" value="${rec.extract_lot_no||''}" class="form-control" /></div>
+      <div class="form-group"><label>병 포장재 Lot No</label><input type="text" id="e_bottle_lot_no" value="${rec.bottle_lot_no||''}" class="form-control" /></div>
       <div class="form-group"><label>작업자</label><input type="text" id="e_worker" value="${(rec.worker||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
       <div class="form-group"><label>충전량 (L)</label><input type="number" id="e_fill_qty" value="${rec.fill_qty||0}" step="0.01" class="form-control" /></div>
       <div class="form-group"><label>병 용량 (mL)</label><input type="number" id="e_fill_volume" value="${rec.fill_volume||0}" step="1" class="form-control" /></div>
-      <div class="form-group"><label>생산병 수</label><input type="number" id="e_bottle_count" value="${rec.bottle_count||0}" class="form-control" /></div>
-      <div class="form-group"><label>실생산수</label><input type="number" id="e_actual_qty" value="${rec.actual_qty||0}" class="form-control" /></div>
+      <div class="form-group"><label>실제 완성 병 수</label><input type="number" id="e_bottle_count" value="${rec.bottle_count||0}" class="form-control" /></div>
+      <div class="form-group"><label>불량 병 수</label><input type="number" id="e_defect_count" value="${rec.defect_count||0}" class="form-control" /></div>
+      <div class="form-group"><label>실 수량 (병재고)</label><input type="number" id="e_actual_qty" value="${rec.bottle_count||0}" class="form-control" readonly /></div>
       <div class="form-group"><label>유통기한</label><input type="date" id="e_expiry_date" value="${rec.expiry_date||''}" class="form-control" /></div>
       <div class="form-group"><label>품질판정</label><select id="e_quality_result" class="form-control"><option ${rec.quality_result==='적합'?'selected':''}>적합</option><option ${rec.quality_result==='부적합'?'selected':''}>부적합</option><option ${rec.quality_result==='재작업'?'selected':''}>재작업</option></select></div>
       <div class="form-group"><label>비고</label><input type="text" id="e_notes" value="${(rec.notes||'').replace(/"/g,'&quot;')}" class="form-control" /></div>
@@ -236,17 +291,21 @@ async function saveEdit() {
     work_date: document.getElementById('e_work_date').value,
     product_name: document.getElementById('e_product_name').value,
     extract_lot_no: document.getElementById('e_extract_lot_no').value,
+    bottle_lot_no: document.getElementById('e_bottle_lot_no').value,
     worker: document.getElementById('e_worker').value,
     fill_qty: parseFloat(document.getElementById('e_fill_qty').value)||0,
     fill_volume: parseFloat(document.getElementById('e_fill_volume').value)||0,
     bottle_count: parseInt(document.getElementById('e_bottle_count').value)||0,
-    actual_qty: parseInt(document.getElementById('e_actual_qty').value)||0,
+    defect_count: parseInt(document.getElementById('e_defect_count').value)||0,
+    actual_qty: parseInt(document.getElementById('e_bottle_count').value)||0,
     expiry_date: document.getElementById('e_expiry_date').value,
     quality_result: document.getElementById('e_quality_result').value,
     notes: document.getElementById('e_notes').value,
   };
   try {
     await apiPatch('bottle_packing_log', editingId, updated);
+    const original = allData.find(r => r.id === editingId) || {};
+    await syncBottleLotUsage({ ...original, ...updated }, editingId);
     showToast('수정 완료!', 'success');
     closeEditModal();
     await loadData();
