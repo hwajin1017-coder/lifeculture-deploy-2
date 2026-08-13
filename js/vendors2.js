@@ -277,13 +277,15 @@ async function syncVendorToProducts2(vendor, previousVendor) {
   if (!codeKeys.size && !nameKeys.size) return 0;
 
   const products = await apiGetAll('products2');
+  // 코드·명칭은 기준값으로 동기화하고, 주소·담당자·연락처는 입력된 값이 있을 때만 갱신합니다.
+  // 빈 값으로 기존 제품마스터의 협력사 상세정보가 지워지는 것을 방지합니다.
   const syncData = {
     supplier_code: vendor.vendor_code || '',
-    supplier_name: vendor.vendor_name || '',
-    supplier_addr: vendor.address || '',
-    supplier_contact: vendor.contact_person || '',
-    supplier_phone: vendor.contact_phone || ''
+    supplier_name: vendor.vendor_name || ''
   };
+  if (String(vendor.address || '').trim()) syncData.supplier_addr = vendor.address;
+  if (String(vendor.contact_person || '').trim()) syncData.supplier_contact = vendor.contact_person;
+  if (String(vendor.contact_phone || '').trim()) syncData.supplier_phone = vendor.contact_phone;
   const targets = (products || []).filter(function(product) {
     const productCode = vendorSyncKey(product.supplier_code);
     const productName = vendorSyncKey(product.supplier_name);
