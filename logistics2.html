@@ -156,6 +156,7 @@
           <div class="kpi-card"><div class="kpi-value" id="lg2KpiLow" style="color:#e67e22">-</div><div class="kpi-label">부족 품목</div></div>
           <div class="kpi-card"><div class="kpi-value" id="lg2KpiZero" style="color:#aaa">-</div><div class="kpi-label">재고없음</div></div>
           <div class="kpi-card"><div class="kpi-value" id="lg2KpiExpiry" style="color:#e74c3c">-</div><div class="kpi-label">소비기한 임박(30일)</div></div>
+          <div class="kpi-card"><div class="kpi-value" id="lg2KpiDefect" style="color:#c0392b">-</div><div class="kpi-label">불량 수량(ea)</div></div>
         </div>
         <!-- 필터 -->
         <div class="filter-bar">
@@ -197,6 +198,18 @@
             </tbody>
           </table>
         </div>
+        <div style="margin-top:18px;border:1px solid #f3c6c1;border-radius:10px;background:#fffafa;padding:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <div style="font-weight:700;color:#c0392b"><i class="fas fa-exclamation-triangle"></i> 불량 현황</div>
+            <div style="font-size:12px;color:#888">불량률 = 입고·출고 불량 수량 ÷ 누적 입고수량 × 100</div>
+          </div>
+          <div class="table-container" style="margin:0">
+            <table class="data-table">
+              <thead><tr><th>품목명</th><th>창고</th><th style="text-align:right">입고 불량(ea)</th><th style="text-align:right">출고 불량(ea)</th><th style="text-align:right">불량 수량(ea)</th><th style="text-align:right">불량률</th><th>불량 사유</th></tr></thead>
+              <tbody id="lg2DefectBody"><tr><td colspan="7" style="text-align:center;padding:22px;color:#aaa">불량 등록 내역이 없습니다.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- ══════════════════════════════════════════ -->
@@ -230,7 +243,9 @@
                 <th>입고일</th>
                 <th>품목명</th>
                 <th>창고</th>
-                <th style="text-align:right">수량(ea)</th>
+                <th style="text-align:right">정상입고(ea)</th>
+                <th style="text-align:right">불량(ea)</th>
+                <th>불량 사유</th>
                 <th style="text-align:right">Box</th>
                 <th style="text-align:right">PT</th>
                 <th>소비기한</th>
@@ -240,7 +255,7 @@
               </tr>
             </thead>
             <tbody id="lg2InBody">
-              <tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
+              <tr><td colspan="12" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
             </tbody>
           </table>
         </div>
@@ -283,6 +298,8 @@
                 <th>품목명</th>
                 <th>창고</th>
                 <th style="text-align:right">수량(ea)</th>
+                <th style="text-align:right">불량(ea)</th>
+                <th>불량 사유</th>
                 <th style="text-align:right">Box</th>
                 <th style="text-align:right">PT</th>
                 <th>출고처</th>
@@ -292,7 +309,7 @@
               </tr>
             </thead>
             <tbody id="lg2OutBody">
-              <tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
+              <tr><td colspan="12" style="text-align:center;padding:40px;color:#aaa">데이터를 불러오는 중...</td></tr>
             </tbody>
           </table>
         </div>
@@ -415,13 +432,24 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>수량(ea) <span style="color:#e74c3c">*</span></label>
+            <label>총 입고수량(ea) <span style="color:#e74c3c">*</span></label>
             <input type="number" id="lg2InQty" min="1" placeholder="0" oninput="lg2UpdateQtyPreview('lg2InItem','lg2InQty','lg2InQtyPreview')" />
             <div class="qty-preview" id="lg2InQtyPreview"></div>
           </div>
           <div class="form-group">
             <label>소비기한</label>
             <input type="date" id="lg2InExpiry" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>불량 수량(ea)</label>
+            <input type="number" id="lg2InDefectQty" min="0" value="0" placeholder="0" />
+            <div style="font-size:11px;color:#c0392b;margin-top:4px">입고수량 중 파손·변질 등 불량 수량입니다. 정상입고 재고에서는 제외됩니다.</div>
+          </div>
+          <div class="form-group">
+            <label>불량 사유</label>
+            <select id="lg2InDefectReason"><option value="">불량 없음</option><option value="파손">파손</option><option value="소비기한 경과">소비기한 경과</option><option value="변질">변질</option><option value="기타">기타</option></select>
           </div>
         </div>
         <div class="form-row">
@@ -490,6 +518,17 @@
           <div class="form-group">
             <label>출고처</label>
             <input type="text" id="lg2OutDest" placeholder="출고처명" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>불량 수량(ea)</label>
+            <input type="number" id="lg2OutDefectQty" min="0" value="0" placeholder="0" />
+            <div style="font-size:11px;color:#c0392b;margin-top:4px">출고수량 중 폐기·반품 등 불량 수량입니다. 재고에서 차감됩니다.</div>
+          </div>
+          <div class="form-group">
+            <label>불량 사유</label>
+            <select id="lg2OutDefectReason"><option value="">불량 없음</option><option value="파손">파손</option><option value="소비기한 경과">소비기한 경과</option><option value="변질">변질</option><option value="기타">기타</option></select>
           </div>
         </div>
         <div class="form-row">

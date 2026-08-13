@@ -361,6 +361,79 @@ function lg2GetTotalStock(itemName, warehouse) {
 }
 
 // ══════════════════════════════════════════════════
+// 불량 현황 집계
+// 불량률 = 입고·출고 불량 수량 ÷ 누적 입고수량 × 100
+// 입고 qty_ea는 정상입고 수량, received_qty_ea는 총 입고수량입니다.
+// ══════════════════════════════════════════════════
+function lg2GetDefectSummary(warehouse, query) {
+  var map = {};
+  var add = function(record, direction) {
+    var name = (record.item_name || '').trim();
+    var wh = record.warehouse || '';
+    if (!name || (warehouse && wh !== warehouse)) return;
+    if (query && !name.toLowerCase().includes(query)) return;
+    var key = name + '||' + wh;
+    if (!map[key]) map[key] = { name: name, warehouse: wh, totalInbound: 0, inboundDefect: 0, outboundDefect: 0, reasons: {} };
+    var row = map[key];
+    if (direction === 'inbound') {
+      var goodQty = Number(record.qty_ea) || 0;
+      var defectQty = Number(record.defect_qty) || 0;
+      row.totalInbound += record.received_qty_ea !== undefined && record.received_qty_ea !== null ? (Number(record.received_qty_ea) || 0) : (goodQty + defectQty);
+      row.inboundDefect += defectQty;
+      if (defectQty > 0) {
+        var inReason = record.defect_reason || '사유 미입력';
+        if (!row.reasons[inReason]) row.reasons[inReason] = { inbound: 0, outbound: 0 };
+        row.reasons[inReason].inbound += defectQty;
+      }
+    } else {
+      var outDefect = Number(record.defect_qty) || 0;
+      row.outboundDefect += outDefect;
+      if (outDefect > 0) {
+        var outReason = record.defect_reason || '사유 미입력';
+        if (!row.reasons[outReason]) row.reasons[outReason] = { inbound: 0, outbound: 0 };
+        row.reasons[outReason].outbound += outDefect;
+      }
+    }
+  };
+  _lg2InboundData.forEach(function(r) { add(r, 'inbound'); });
+  _lg2OutboundData.forEach(function(r) { add(r, 'outbound'); });
+  return Object.keys(map).map(function(key) {
+    var row = map[key];
+    row.defectQty = row.inboundDefect + row.outboundDefect;
+    row.defectRate = row.totalInbound > 0 ? (row.defectQty / row.totalInbound * 100) : 0;
+    row.reasonText = Object.keys(row.reasons).map(function(reason) {
+      var counts = row.reasons[reason];
+      var parts = [];
+      if (counts.inbound) parts.push('입고 ' + counts.inbound.toLocaleString());
+      if (counts.outbound) parts.push('출고 ' + counts.outbound.toLocaleString());
+      return reason + ' (' + parts.join(', ') + ')';
+    }).join(' · ');
+    return row;
+  }).filter(function(row) { return row.defectQty > 0; }).sort(function(a, b) { return b.defectQty - a.defectQty || a.name.localeCompare(b.name); });
+}
+
+function lg2RenderDefectSummary(rows) {
+  var body = document.getElementById('lg2DefectBody');
+  if (!body) return;
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:22px;color:#aaa">불량 등록 내역이 없습니다.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(row) {
+    var wBadge = row.warehouse === 'W' ? '<span class="badge-W">🏭 일반(W)</span>' : '<span class="badge-C">❄️ 저온(C)</span>';
+    return '<tr>'
+      + '<td><strong>' + lg2esc(row.name) + '</strong></td>'
+      + '<td>' + wBadge + '</td>'
+      + '<td style="text-align:right">' + row.inboundDefect.toLocaleString() + '</td>'
+      + '<td style="text-align:right">' + row.outboundDefect.toLocaleString() + '</td>'
+      + '<td style="text-align:right;color:#c0392b;font-weight:700">' + row.defectQty.toLocaleString() + '</td>'
+      + '<td style="text-align:right;color:#c0392b;font-weight:700">' + row.defectRate.toFixed(2) + '%</td>'
+      + '<td style="font-size:12px">' + lg2esc(row.reasonText || '-') + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
 // 전체현황 렌더링
 // ══════════════════════════════════════════════════
 function lg2RenderOverview() {
@@ -437,6 +510,11 @@ function lg2RenderOverview() {
   sv('lg2KpiZero', zeroCount);
   sv('lg2KpiExpiry', expiryCount);
 
+  var defectRows = lg2GetDefectSummary(wh, q);
+  var totalDefect = defectRows.reduce(function(sum, row) { return sum + row.defectQty; }, 0);
+  sv('lg2KpiDefect', totalDefect.toLocaleString());
+  lg2RenderDefectSummary(defectRows);
+
   // 테이블
   var tbody = document.getElementById('lg2OvBody');
   if (!tbody) return;
@@ -489,7 +567,7 @@ function lg2RenderInbound(resetPage) {
   var tbody = document.getElementById('lg2InBody');
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">입고 내역이 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:#aaa">입고 내역이 없습니다.</td></tr>';
     lg2RenderPager('lg2InPageInfo','lg2InPageBtns', 0, 0, 0, 'inbound');
     return;
   }
@@ -503,6 +581,8 @@ function lg2RenderInbound(resetPage) {
       '<td><strong>' + lg2esc(r.item_name || '-') + '</strong></td>' +
       '<td>' + wBadge + '</td>' +
       '<td style="text-align:right">' + (r.qty_ea || 0).toLocaleString() + '</td>' +
+      '<td style="text-align:right;color:' + ((Number(r.defect_qty) || 0) > 0 ? '#c0392b' : '#888') + '">' + (Number(r.defect_qty) || 0).toLocaleString() + '</td>' +
+      '<td style="font-size:12px;color:' + ((Number(r.defect_qty) || 0) > 0 ? '#c0392b' : '#888') + '">' + lg2esc(r.defect_reason || '-') + '</td>' +
       '<td style="text-align:right">' + bd.box.toLocaleString() + '</td>' +
       '<td style="text-align:right">' + bd.pt.toLocaleString() + '</td>' +
       '<td>' + lg2esc(r.expiry || '-') + '</td>' +
@@ -541,7 +621,7 @@ function lg2RenderOutbound(resetPage) {
   var tbody = document.getElementById('lg2OutBody');
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">출고 내역이 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:#aaa">출고 내역이 없습니다.</td></tr>';
     lg2RenderPager('lg2OutPageInfo','lg2OutPageBtns', 0, 0, 0, 'outbound');
     return;
   }
@@ -555,6 +635,8 @@ function lg2RenderOutbound(resetPage) {
       '<td><strong>' + lg2esc(r.item_name || '-') + '</strong></td>' +
       '<td>' + wBadge + '</td>' +
       '<td style="text-align:right">' + (r.qty_ea || 0).toLocaleString() + '</td>' +
+      '<td style="text-align:right;color:' + ((Number(r.defect_qty) || 0) > 0 ? '#c0392b' : '#888') + '">' + (Number(r.defect_qty) || 0).toLocaleString() + '</td>' +
+      '<td style="font-size:12px;color:' + ((Number(r.defect_qty) || 0) > 0 ? '#c0392b' : '#888') + '">' + lg2esc(r.defect_reason || '-') + '</td>' +
       '<td style="text-align:right">' + bd.box.toLocaleString() + '</td>' +
       '<td style="text-align:right">' + bd.pt.toLocaleString() + '</td>' +
       '<td>' + lg2esc(r.destination || '-') + '</td>' +
@@ -633,7 +715,9 @@ function lg2OpenInboundModal(id) {
     setVal('lg2InDate', rec.date || today);
     setVal('lg2InWarehouseModal', rec.warehouse || 'W');
     setVal('lg2InItem', rec.item_name || '');
-    setVal('lg2InQty', rec.qty_ea || '');
+    setVal('lg2InQty', rec.received_qty_ea !== undefined && rec.received_qty_ea !== null ? rec.received_qty_ea : ((Number(rec.qty_ea) || 0) + (Number(rec.defect_qty) || 0)));
+    setVal('lg2InDefectQty', Number(rec.defect_qty) || 0);
+    setVal('lg2InDefectReason', rec.defect_reason || '');
     setVal('lg2InExpiry', rec.expiry || '');
     setVal('lg2InSupplier', rec.supplier || '');
     setVal('lg2InManager', rec.manager || '');
@@ -646,6 +730,8 @@ function lg2OpenInboundModal(id) {
     setVal('lg2InWarehouseModal', 'W');
     setVal('lg2InItem', '');
     setVal('lg2InQty', '');
+    setVal('lg2InDefectQty', 0);
+    setVal('lg2InDefectReason', '');
     setVal('lg2InExpiry', '');
     setVal('lg2InSupplier', '');
     setVal('lg2InManager', '');
@@ -666,6 +752,8 @@ async function lg2SaveInbound() {
   var wh      = getVal('lg2InWarehouseModal');
   var item    = getVal('lg2InItem');
   var qtyStr  = getVal('lg2InQty');
+  var defectQtyStr = getVal('lg2InDefectQty');
+  var defectReason = getVal('lg2InDefectReason');
   var expiry  = getVal('lg2InExpiry');
   var supplier= getVal('lg2InSupplier');
   var manager = getVal('lg2InManager');
@@ -678,13 +766,20 @@ async function lg2SaveInbound() {
   }
   var qty = parseInt(qtyStr);
   if (isNaN(qty) || qty <= 0) { showToast('수량은 1 이상의 숫자를 입력하세요.', 'error'); return; }
+  var defectQty = defectQtyStr === '' ? 0 : parseInt(defectQtyStr);
+  if (isNaN(defectQty) || defectQty < 0 || defectQty > qty) { showToast('불량 수량은 0 이상이며 입고수량 이하로 입력하세요.', 'error'); return; }
+  if (defectQty > 0 && !defectReason) { showToast('불량 수량을 입력한 경우 불량 사유를 선택하세요.', 'error'); return; }
+  var normalQty = qty - defectQty;
 
-  var bd = lg2CalcBreakdown(qty, item);
+  var bd = lg2CalcBreakdown(normalQty, item);
   var data = {
     date: date,
     warehouse: wh,
     item_name: item,
-    qty_ea: qty,
+    qty_ea: normalQty,
+    received_qty_ea: qty,
+    defect_qty: defectQty,
+    defect_reason: defectQty > 0 ? defectReason : '',
     qty_box: bd.box,
     qty_pt: bd.pt,
     expiry: expiry,
@@ -738,6 +833,8 @@ function lg2OpenOutboundModal(id) {
     setVal('lg2OutWarehouseModal', rec.warehouse || 'W');
     setVal('lg2OutItem', rec.item_name || '');
     setVal('lg2OutQty', rec.qty_ea || '');
+    setVal('lg2OutDefectQty', Number(rec.defect_qty) || 0);
+    setVal('lg2OutDefectReason', rec.defect_reason || '');
     setVal('lg2OutDest', rec.destination || '');
     setVal('lg2OutManager', rec.manager || '');
     setVal('lg2OutMemo', rec.memo || '');
@@ -750,6 +847,8 @@ function lg2OpenOutboundModal(id) {
     setVal('lg2OutWarehouseModal', 'W');
     setVal('lg2OutItem', '');
     setVal('lg2OutQty', '');
+    setVal('lg2OutDefectQty', 0);
+    setVal('lg2OutDefectReason', '');
     setVal('lg2OutDest', '');
     setVal('lg2OutManager', '');
     setVal('lg2OutMemo', '');
@@ -788,6 +887,8 @@ async function lg2SaveOutbound() {
   var wh     = getVal('lg2OutWarehouseModal');
   var item   = getVal('lg2OutItem');
   var qtyStr = getVal('lg2OutQty');
+  var defectQtyStr = getVal('lg2OutDefectQty');
+  var defectReason = getVal('lg2OutDefectReason');
   var dest   = getVal('lg2OutDest');
   var manager= getVal('lg2OutManager');
   var memo   = getVal('lg2OutMemo');
@@ -799,6 +900,9 @@ async function lg2SaveOutbound() {
   }
   var qty = parseInt(qtyStr);
   if (isNaN(qty) || qty <= 0) { showToast('수량은 1 이상의 숫자를 입력하세요.', 'error'); return; }
+  var defectQty = defectQtyStr === '' ? 0 : parseInt(defectQtyStr);
+  if (isNaN(defectQty) || defectQty < 0 || defectQty > qty) { showToast('불량 수량은 0 이상이며 출고수량 이하로 입력하세요.', 'error'); return; }
+  if (defectQty > 0 && !defectReason) { showToast('불량 수량을 입력한 경우 불량 사유를 선택하세요.', 'error'); return; }
 
   // 재고 부족 경고 (신규 등록 시)
   if (!editId) {
@@ -814,6 +918,8 @@ async function lg2SaveOutbound() {
     warehouse: wh,
     item_name: item,
     qty_ea: qty,
+    defect_qty: defectQty,
+    defect_reason: defectQty > 0 ? defectReason : '',
     qty_box: bd.box,
     qty_pt: bd.pt,
     destination: dest,
@@ -1418,18 +1524,24 @@ function lg2ExportExcel() {
     });
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ovRows), '전체현황');
+  // 불량 현황 시트
+  var defectRows = [['품목명','창고','입고 불량(ea)','출고 불량(ea)','불량 수량(ea)','불량률','불량 사유']];
+  lg2GetDefectSummary('', '').forEach(function(r) {
+    defectRows.push([r.name, r.warehouse === 'W' ? '일반창고(W)' : '저온창고(C)', r.inboundDefect, r.outboundDefect, r.defectQty, r.defectRate.toFixed(2) + '%', r.reasonText || '']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(defectRows), '불량현황');
   // 입고 시트
-  var inRows = [['입고일','품목명','창고','수량(ea)','Box','PT','소비기한','공급업체','담당자','비고']];
+  var inRows = [['입고일','품목명','창고','총입고(ea)','불량(ea)','불량사유','Box','PT','소비기한','공급업체','담당자','비고']];
   _lg2InboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
-    inRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,bd.box,bd.pt,r.expiry||'',r.supplier||'',r.manager||'',r.memo||'']);
+    inRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.received_qty_ea !== undefined && r.received_qty_ea !== null ? r.received_qty_ea : ((Number(r.qty_ea)||0) + (Number(r.defect_qty)||0)),Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.expiry||'',r.supplier||'',r.manager||'',r.memo||'']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inRows), '입고관리');
   // 출고 시트
-  var outRows = [['출고일','품목명','창고','수량(ea)','Box','PT','출고처','담당자','비고']];
+  var outRows = [['출고일','품목명','창고','수량(ea)','불량(ea)','불량사유','Box','PT','출고처','담당자','비고']];
   _lg2OutboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
-    outRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,bd.box,bd.pt,r.destination||'',r.manager||'',r.memo||'']);
+    outRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.destination||'',r.manager||'',r.memo||'']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(outRows), '출고관리');
   // 재고실사 시트
@@ -1444,10 +1556,10 @@ function lg2ExportExcel() {
 
 function lg2ExportInboundExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var rows = [['입고일','품목명','창고','수량(ea)','Box','PT','소비기한','공급업체','담당자','비고']];
+  var rows = [['입고일','품목명','창고','총입고(ea)','불량(ea)','불량사유','Box','PT','소비기한','공급업체','담당자','비고']];
   _lg2InboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
-    rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,bd.box,bd.pt,r.expiry||'',r.supplier||'',r.manager||'',r.memo||'']);
+    rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.received_qty_ea !== undefined && r.received_qty_ea !== null ? r.received_qty_ea : ((Number(r.qty_ea)||0) + (Number(r.defect_qty)||0)),Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.expiry||'',r.supplier||'',r.manager||'',r.memo||'']);
   });
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '입고관리');
@@ -1457,10 +1569,10 @@ function lg2ExportInboundExcel() {
 
 function lg2ExportOutboundExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var rows = [['출고일','품목명','창고','수량(ea)','Box','PT','출고처','담당자','비고']];
+  var rows = [['출고일','품목명','창고','수량(ea)','불량(ea)','불량사유','Box','PT','출고처','담당자','비고']];
   _lg2OutboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
-    rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,bd.box,bd.pt,r.destination||'',r.manager||'',r.memo||'']);
+    rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.destination||'',r.manager||'',r.memo||'']);
   });
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '출고관리');
@@ -1654,7 +1766,9 @@ async function lg2ParseAndSaveExcel(file, mode) {
       var iDate      = col(['입고일', '날짜', 'date']);
       var iWarehouse = col(['창고', 'warehouse']);
       var iItem      = col(['품목명', '품목', '제품명', '제품', 'item', 'product']);
-      var iQty       = col(['수량', 'ea', 'qty', 'quantity']);
+      var iQty       = col(['총입고', '수량', '정상입고', 'ea', 'qty', 'quantity']);
+      var iDefectQty = col(['불량수량', '불량 수량', '불량(ea)', '불량', 'defect_qty']);
+      var iDefectReason = col(['불량사유', '불량 사유', 'defect_reason']);
       var iExpiry    = col(['소비기한', '유통기한', 'expiry', 'expire']);
       var iSupplier  = col(['공급업체', '공급사', 'supplier', 'vendor']);
       var iManager   = col(['담당자', '작성자', 'manager']);
@@ -1671,16 +1785,23 @@ async function lg2ParseAndSaveExcel(file, mode) {
         if (!itemName) { skipped++; continue; }
         var qty = parseInt(row[iQty] || 0) || 0;
         if (qty <= 0) { skipped++; continue; }
+        var defectQty = iDefectQty >= 0 ? (parseInt(row[iDefectQty] || 0) || 0) : 0;
+        var defectReason = iDefectReason >= 0 ? String(row[iDefectReason] || '').trim() : '';
+        if (defectQty < 0 || defectQty > qty || (defectQty > 0 && !defectReason)) { skipped++; continue; }
+        var normalQty = qty - defectQty;
 
         var warehouseRaw = String(row[iWarehouse] || '').trim().toUpperCase();
         var warehouse = (warehouseRaw.indexOf('C') >= 0 || warehouseRaw.indexOf('저온') >= 0) ? 'C' : 'W';
-        var breakdown = lg2CalcBreakdown(qty, itemName);
+        var breakdown = lg2CalcBreakdown(normalQty, itemName);
 
         var rec = {
           date:      toDateStr(row[iDate]) || todayStr,
           warehouse: warehouse,
           item_name: itemName,
-          qty_ea:    qty,
+          qty_ea:    normalQty,
+          received_qty_ea: qty,
+          defect_qty: defectQty,
+          defect_reason: defectQty > 0 ? defectReason : '',
           qty_box:   breakdown.box,
           qty_pt:    breakdown.pt,
           expiry:    toDateStr(row[iExpiry]) || '',
@@ -1698,6 +1819,8 @@ async function lg2ParseAndSaveExcel(file, mode) {
       var oWarehouse = col(['창고', 'warehouse']);
       var oItem      = col(['품목명', '품목', '제품명', '제품', 'item', 'product']);
       var oQty       = col(['수량', 'ea', 'qty', 'quantity']);
+      var oDefectQty = col(['불량수량', '불량 수량', '불량(ea)', '불량', 'defect_qty']);
+      var oDefectReason = col(['불량사유', '불량 사유', 'defect_reason']);
       var oDest      = col(['출고체', '거래체', '고객사', 'destination', 'dest', 'customer']);
       var oManager   = col(['담당자', '작성자', 'manager']);
       var oMemo      = col(['비고', '메모', 'memo', 'note', 'remark']);
@@ -1713,6 +1836,9 @@ async function lg2ParseAndSaveExcel(file, mode) {
         if (!oItemName) { skipped++; continue; }
         var oQtyVal = parseInt(orow[oQty] || 0) || 0;
         if (oQtyVal <= 0) { skipped++; continue; }
+        var oDefectQtyVal = oDefectQty >= 0 ? (parseInt(orow[oDefectQty] || 0) || 0) : 0;
+        var oDefectReasonVal = oDefectReason >= 0 ? String(orow[oDefectReason] || '').trim() : '';
+        if (oDefectQtyVal < 0 || oDefectQtyVal > oQtyVal || (oDefectQtyVal > 0 && !oDefectReasonVal)) { skipped++; continue; }
 
         var oWarehouseRaw = String(orow[oWarehouse] || '').trim().toUpperCase();
         var oWarehouseVal = (oWarehouseRaw.indexOf('C') >= 0 || oWarehouseRaw.indexOf('저온') >= 0) ? 'C' : 'W';
@@ -1723,6 +1849,8 @@ async function lg2ParseAndSaveExcel(file, mode) {
           warehouse:   oWarehouseVal,
           item_name:   oItemName,
           qty_ea:      oQtyVal,
+          defect_qty:  oDefectQtyVal,
+          defect_reason: oDefectQtyVal > 0 ? oDefectReasonVal : '',
           qty_box:     oBd.box,
           qty_pt:      oBd.pt,
           destination: String(orow[oDest] || '').trim(),
@@ -1758,12 +1886,14 @@ async function lg2ParseAndSaveExcel(file, mode) {
 
 function lg2DownloadInboundTemplate() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var header = ['입고일', '창고(W=일반/C=저온)', '품목명', '수량(ea)', '소비기한', '공급업체', '담당자', '비고'];
+  var header = ['입고일', '창고(W=일반/C=저온)', '품목명', '총입고(ea)', '불량수량(ea)', '불량사유', '소비기한', '공급업체', '담당자', '비고'];
   var example = [
     new Date().toISOString().split('T')[0],
     'W',
     '예시제품A',
     100,
+    0,
+    '',
     '2026-12-31',
     '(주)공급업체',
     '홍길동',
@@ -1772,8 +1902,8 @@ function lg2DownloadInboundTemplate() {
   var wb = XLSX.utils.book_new();
   var ws = XLSX.utils.aoa_to_sheet([header, example]);
   ws['!cols'] = [
-    { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 10 },
-    { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 20 }
+    { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 10 }, { wch: 12 },
+    { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 20 }
   ];
   XLSX.utils.book_append_sheet(wb, ws, '입고양식');
   XLSX.writeFile(wb, '물류관리2_입고_양식.xlsx');
@@ -1782,12 +1912,14 @@ function lg2DownloadInboundTemplate() {
 
 function lg2DownloadOutboundTemplate() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var header = ['출고일', '창고(W=일반/C=저온)', '품목명', '수량(ea)', '출고체', '담당자', '비고'];
+  var header = ['출고일', '창고(W=일반/C=저온)', '품목명', '수량(ea)', '불량수량(ea)', '불량사유', '출고체', '담당자', '비고'];
   var example = [
     new Date().toISOString().split('T')[0],
     'W',
     '예시제품A',
     50,
+    0,
+    '',
     '(주)거래체',
     '홍길동',
     '메모'
@@ -1795,8 +1927,8 @@ function lg2DownloadOutboundTemplate() {
   var wb = XLSX.utils.book_new();
   var ws = XLSX.utils.aoa_to_sheet([header, example]);
   ws['!cols'] = [
-    { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 10 },
-    { wch: 20 }, { wch: 10 }, { wch: 20 }
+    { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 10 }, { wch: 12 },
+    { wch: 14 }, { wch: 20 }, { wch: 10 }, { wch: 20 }
   ];
   XLSX.utils.book_append_sheet(wb, ws, '출고양식');
   XLSX.writeFile(wb, '물류관리2_출고_양식.xlsx');
