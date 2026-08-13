@@ -12,6 +12,8 @@ var _p2PendingRows = []; // 엑셀 미리보기 임시 데이터
 var _p2VendorCache = []; // 거래처 정보 캐시
 var _p2SortField = 'own_code';
 var _p2SortDir = 'desc';
+var _p2CurrentPage = 1;
+var _p2PageSize = 20;
 
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', function() {
@@ -43,6 +45,7 @@ async function p2LoadAll() {
       vendorKeys.add(key);
       return true;
     });
+    _p2CurrentPage = 1;
     p2RenderKpi();
     p2RenderTable();
   } catch(e) {
@@ -204,6 +207,12 @@ function p2SearchConditionChange() {
     input.placeholder = labels[field] || labels.all;
     input.focus();
   }
+  _p2CurrentPage = 1;
+  p2RenderTable();
+}
+
+function p2ResetPageAndRender() {
+  _p2CurrentPage = 1;
   p2RenderTable();
 }
 
@@ -253,34 +262,73 @@ function p2SetSort(field) {
     _p2SortField = field;
     _p2SortDir = field === 'own_code' ? 'desc' : 'asc';
   }
+  _p2CurrentPage = 1;
   p2RenderTable();
 }
 
-// ── 테이블 렌더링 ──
-function p2RenderTable() {
+function p2ChangePage(page) {
+  var totalPages = Math.max(1, Math.ceil(p2GetFilteredRows().length / _p2PageSize));
+  _p2CurrentPage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  p2RenderTable();
+  var table = document.getElementById('p2Table');
+  if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function p2GetFilteredRows() {
   var q = ((document.getElementById('p2Search') || {}).value || '').trim().toLowerCase();
   var sf = ((document.getElementById('p2SearchField') || {}).value || 'all');
   var ft = ((document.getElementById('p2FilterType') || {}).value || '');
-  var tbody = document.getElementById('p2TableBody');
-  if (!tbody) return;
-
   var rows = _p2AllData.filter(function(r) {
     if (ft && r.product_type !== ft) return false;
     if (q && !p2SearchText(r, sf).includes(q)) return false;
     return true;
   });
+  return p2ApplySort(rows);
+}
 
-  // 기본 표시: 당사분류코드의 최신 순번이 위로 오도록 정렬합니다.
-  p2ApplySort(rows);
+function p2RenderPagination(totalPages) {
+  var pager = document.getElementById('p2Pagination');
+  if (!pager) return;
+  if (totalPages <= 1) { pager.innerHTML = ''; return; }
+  var buttons = [];
+  var makeButton = function(label, page, disabled, active) {
+    return '<button type="button" onclick="p2ChangePage(' + page + ')" ' + (disabled ? 'disabled' : '')
+      + ' style="min-width:32px;height:32px;padding:0 8px;border:1px solid ' + (active ? '#2C5F2E' : '#d8d8d8')
+      + ';border-radius:5px;background:' + (active ? '#2C5F2E' : '#fff') + ';color:' + (active ? '#fff' : (disabled ? '#aaa' : '#444'))
+      + ';font-size:12px;cursor:' + (disabled ? 'not-allowed' : 'pointer') + ';font-weight:' + (active ? '700' : '500') + '">' + label + '</button>';
+  };
+  buttons.push(makeButton('‹', _p2CurrentPage - 1, _p2CurrentPage === 1, false));
+  var start = Math.max(1, _p2CurrentPage - 2);
+  var end = Math.min(totalPages, start + 4);
+  start = Math.max(1, end - 4);
+  if (start > 1) { buttons.push(makeButton('1', 1, false, false)); if (start > 2) buttons.push('<span style="padding:0 2px;color:#888">…</span>'); }
+  for (var page = start; page <= end; page++) buttons.push(makeButton(page, page, false, page === _p2CurrentPage));
+  if (end < totalPages) { if (end < totalPages - 1) buttons.push('<span style="padding:0 2px;color:#888">…</span>'); buttons.push(makeButton(totalPages, totalPages, false, false)); }
+  buttons.push(makeButton('›', _p2CurrentPage + 1, _p2CurrentPage === totalPages, false));
+  pager.innerHTML = buttons.join('');
+}
 
-  if (!rows.length) {
+// ── 테이블 렌더링 ──
+function p2RenderTable() {
+  var tbody = document.getElementById('p2TableBody');
+  if (!tbody) return;
+
+  var rows = p2GetFilteredRows();
+  var totalCount = rows.length;
+  var totalPages = Math.max(1, Math.ceil(totalCount / _p2PageSize));
+  if (_p2CurrentPage > totalPages) _p2CurrentPage = totalPages;
+  var startIndex = (_p2CurrentPage - 1) * _p2PageSize;
+  var pageRows = rows.slice(startIndex, startIndex + _p2PageSize);
+
+  if (!totalCount) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:40px">등록된 제품이 없습니다.</td></tr>';
     var cnt = document.getElementById('p2TableCount');
     if (cnt) cnt.textContent = '0건';
+    p2RenderPagination(0);
     return;
   }
 
-  tbody.innerHTML = rows.map(function(r) {
+  tbody.innerHTML = pageRows.map(function(r) {
     var typeBadge = r.product_type === '자사' ? '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:10px;font-size:11px">자사</span>'
       : r.product_type === 'OEM' ? '<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-size:11px">OEM</span>'
       : r.product_type === '수입' ? '<span style="background:#fff8e1;color:#f57f17;padding:2px 8px;border-radius:10px;font-size:11px">수입</span>'
@@ -302,7 +350,8 @@ function p2RenderTable() {
   }).join('');
 
   var cnt = document.getElementById('p2TableCount');
-  if (cnt) cnt.textContent = rows.length + '건';
+  if (cnt) cnt.textContent = '전체 ' + totalCount + '건 · ' + (startIndex + 1) + '-' + Math.min(startIndex + _p2PageSize, totalCount) + '번째';
+  p2RenderPagination(totalPages);
 }
 
 // ── 모달 열기 ──

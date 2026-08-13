@@ -144,8 +144,8 @@
             <option value="supplier_name">협력사명</option>
             <option value="storage">보관조건</option>
           </select>
-          <input type="text" id="p2Search" placeholder="전체 항목 검색..." style="height:36px;width:160px;min-width:100px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;flex-shrink:0" oninput="p2RenderTable()" />
-          <select id="p2FilterType" aria-label="상품 구분" style="height:36px;width:auto;min-width:80px;padding:0 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;flex-shrink:0" onchange="p2RenderTable()">
+          <input type="text" id="p2Search" placeholder="전체 항목 검색..." style="height:36px;width:160px;min-width:100px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;flex-shrink:0" oninput="p2ResetPageAndRender()" />
+          <select id="p2FilterType" aria-label="상품 구분" style="height:36px;width:auto;min-width:80px;padding:0 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;flex-shrink:0" onchange="p2ResetPageAndRender()">
             <option value="">전체</option>
             <option value="자사">자사</option>
             <option value="OEM">OEM</option>
@@ -204,8 +204,9 @@
             </tbody>
           </table>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;flex-wrap:wrap;gap:10px">
           <span id="p2TableCount" style="color:#666;font-size:14px">0건</span>
+          <div id="p2Pagination" aria-label="제품 목록 페이지 이동" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"></div>
         </div>
       </div>
     </div>
