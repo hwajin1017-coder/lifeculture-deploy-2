@@ -95,6 +95,63 @@ function filterTable() {
 }
 
 // ===========================
+// 엑셀 다운로드
+// ===========================
+function exportVendorsExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('엑셀 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요.', 'error');
+    return;
+  }
+  if (!allVendors.length) {
+    showToast('다운로드할 등록 거래처가 없습니다.', 'warning');
+    return;
+  }
+
+  const rows = allVendors.map(v => ({
+    '거래처코드': v.vendor_code || '',
+    '거래처명': v.vendor_name || '',
+    '거래구분': v.vendor_type || '',
+    '거래상태': v.trade_status || '',
+    '사업자등록번호': v.registration_no || '',
+    '대표자명': v.representative || '',
+    '업태': v.business_type || '',
+    '종목': v.business_category || '',
+    '주소': v.address || '',
+    '담당자명': v.contact_person || '',
+    '연락처': v.contact_phone || '',
+    '이메일': v.contact_email || '',
+    '거래시작일': v.trade_start_date || '',
+    '은행명': v.bank_name || '',
+    '계좌번호': v.bank_account || '',
+    '예금주': v.account_holder || '',
+    '사업자등록증 파일': v.doc_registration_file || '',
+    '사업자등록증 등록일': v.doc_registration_date || '',
+    '사업자등록증 상태': v.doc_registration_status || '',
+    '통장사본 파일': v.doc_bank_file || '',
+    '통장사본 등록일': v.doc_bank_date || '',
+    '통장사본 상태': v.doc_bank_status || '',
+    '기타서류 파일': v.doc_other_file || '',
+    '기타서류 등록일': v.doc_other_date || '',
+    '기타서류 상태': v.doc_other_status || '',
+    '비고': v.notes || '',
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 18 },
+    { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 40 }, { wch: 14 },
+    { wch: 18 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 24 },
+    { wch: 14 }, { wch: 26 }, { wch: 16 }, { wch: 14 }, { wch: 26 },
+    { wch: 16 }, { wch: 14 }, { wch: 26 }, { wch: 16 }, { wch: 14 }, { wch: 40 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '거래처정보');
+  const fileDate = (typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  XLSX.writeFile(wb, `거래처정보_${fileDate}.xlsx`);
+  showToast(`✅ 등록 거래처 ${rows.length}건을 엑셀로 다운로드했습니다.`, 'success');
+}
+
+// ===========================
 // 테이블 렌더링
 // ===========================
 function renderTable() {

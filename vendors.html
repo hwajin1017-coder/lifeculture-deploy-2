@@ -306,6 +306,7 @@
               <option value="OEM업체">OEM업체</option>
               <option value="기타">기타</option>
             </select>
+            <button type="button" class="btn btn-success" onclick="exportVendorsExcel()"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -407,6 +408,7 @@
     <script src="js/db.js"></script>
   <script src="js/common.js"></script>
   <script src="js/pwa.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="js/vendors.js"></script>
   <script>
     // 파일 미리보기
