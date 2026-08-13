@@ -136,8 +136,16 @@
         </div>
         <!-- 헤더 2행: 검색 + 필터 + 엑셀 버튼 -->
         <div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center;margin-bottom:4px;overflow-x:auto;padding-bottom:2px">
-          <input type="text" id="p2Search" placeholder="검색..." style="height:36px;width:160px;min-width:100px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;flex-shrink:0" oninput="p2RenderTable()" />
-          <select id="p2FilterType" style="height:36px;width:auto;min-width:80px;padding:0 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;flex-shrink:0" onchange="p2RenderTable()">
+          <select id="p2SearchField" aria-label="검색 조건" style="height:36px;width:auto;min-width:94px;padding:0 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;flex-shrink:0" onchange="p2SearchConditionChange()">
+            <option value="all">전체 항목</option>
+            <option value="product_name">상품명</option>
+            <option value="product_code">상품코드</option>
+            <option value="own_code">당사분류코드</option>
+            <option value="supplier_name">협력사명</option>
+            <option value="storage">보관조건</option>
+          </select>
+          <input type="text" id="p2Search" placeholder="전체 항목 검색..." style="height:36px;width:160px;min-width:100px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;flex-shrink:0" oninput="p2RenderTable()" />
+          <select id="p2FilterType" aria-label="상품 구분" style="height:36px;width:auto;min-width:80px;padding:0 6px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;flex-shrink:0" onchange="p2RenderTable()">
             <option value="">전체</option>
             <option value="자사">자사</option>
             <option value="OEM">OEM</option>

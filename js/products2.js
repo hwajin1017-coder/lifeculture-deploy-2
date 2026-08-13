@@ -113,21 +113,55 @@ function p2RenderKpi() {
   set('p2ImpCount', imp);
 }
 
+// ── 조건부 검색 ──
+function p2SearchConditionChange() {
+  var field = ((document.getElementById('p2SearchField') || {}).value || 'all');
+  var input = document.getElementById('p2Search');
+  var labels = {
+    all: '전체 항목 검색...',
+    product_name: '상품명 검색...',
+    product_code: '상품코드 검색...',
+    own_code: '당사분류코드 검색...',
+    supplier_name: '협력사명 검색...',
+    storage: '보관조건 검색...'
+  };
+  if (input) {
+    input.placeholder = labels[field] || labels.all;
+    input.focus();
+  }
+  p2RenderTable();
+}
+
+function p2SearchText(r, field) {
+  var bundles = (r.bundles || []).map(function(b) { return [b.code || '', b.name || ''].join(' '); }).join(' ');
+  var boxItems = (r.box_items || []).map(function(b) { return [b.code || '', b.name || ''].join(' '); }).join(' ');
+  var all = [
+    r.product_name || '', r.product_code || '', r.own_code || '', r.product_type || '',
+    r.supplier_name || '', r.supplier_code || '', r.storage || '',
+    r.box_product_code || '', r.box_product_name || '', bundles, boxItems
+  ].join(' ');
+  var fields = {
+    all: all,
+    product_name: r.product_name || '',
+    product_code: r.product_code || '',
+    own_code: r.own_code || '',
+    supplier_name: [r.supplier_name || '', r.supplier_code || ''].join(' '),
+    storage: r.storage || ''
+  };
+  return (fields[field] != null ? fields[field] : fields.all).toString().toLowerCase();
+}
+
 // ── 테이블 렌더링 ──
 function p2RenderTable() {
-  var q = ((document.getElementById('p2Search') || {}).value || '').toLowerCase();
+  var q = ((document.getElementById('p2Search') || {}).value || '').trim().toLowerCase();
+  var sf = ((document.getElementById('p2SearchField') || {}).value || 'all');
   var ft = ((document.getElementById('p2FilterType') || {}).value || '');
   var tbody = document.getElementById('p2TableBody');
   if (!tbody) return;
 
   var rows = _p2AllData.filter(function(r) {
     if (ft && r.product_type !== ft) return false;
-    if (q) {
-      var name = (r.product_name || '').toLowerCase();
-      var code = (r.product_code || '').toLowerCase();
-      var own = (r.own_code || '').toLowerCase();
-      if (!name.includes(q) && !code.includes(q) && !own.includes(q)) return false;
-    }
+    if (q && !p2SearchText(r, sf).includes(q)) return false;
     return true;
   });
 
