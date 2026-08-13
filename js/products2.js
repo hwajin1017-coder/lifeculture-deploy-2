@@ -65,6 +65,58 @@ async function p2GenerateOwnCode() {
   }
 }
 
+// ── 상품코드 EAN-13 검증 ──
+function p2ValidateEan13(rawCode) {
+  // 바코드 표기 시 들어갈 수 있는 공백·하이픈은 제거하고 13자리 숫자로 저장합니다.
+  var code = String(rawCode == null ? '' : rawCode).replace(/[\s-]/g, '');
+  if (!/^\d{13}$/.test(code)) {
+    return { valid: false, code: code, message: '상품코드는 숫자 13자리 EAN-13 바코드여야 합니다.' };
+  }
+  var sum = 0;
+  for (var i = 0; i < 12; i++) sum += Number(code.charAt(i)) * (i % 2 === 0 ? 1 : 3);
+  var expectedCheckDigit = (10 - (sum % 10)) % 10;
+  if (Number(code.charAt(12)) !== expectedCheckDigit) {
+    return { valid: false, code: code, message: 'EAN-13 체크디지트가 맞지 않습니다. 마지막 자리는 ' + expectedCheckDigit + '이어야 합니다.' };
+  }
+  return { valid: true, code: code, message: '' };
+}
+
+function p2ValidateProductCodeField() {
+  var field = document.getElementById('p2ProductCode');
+  if (!field) return true;
+  var result = p2ValidateEan13(field.value);
+  if (result.code !== field.value) field.value = result.code;
+  field.setCustomValidity(result.valid ? '' : result.message);
+  return result.valid;
+}
+
+function p2ValidateUploadBarcodes(rows, existingRows) {
+  var errors = [];
+  var codeRows = {};
+  var existingCodes = new Set((existingRows || []).map(function(record) {
+    return String(record.product_code || '').replace(/[\s-]/g, '');
+  }).filter(Boolean));
+
+  (rows || []).forEach(function(record, index) {
+    var checked = p2ValidateEan13(record.product_code);
+    record.product_code = checked.code;
+    var rowNo = index + 1;
+    if (!checked.valid) {
+      errors.push(rowNo + '행 [' + (record.product_name || '상품명 없음') + ']: ' + checked.message);
+      return;
+    }
+    if (existingCodes.has(checked.code)) {
+      errors.push(rowNo + '행 [' + (record.product_name || '상품명 없음') + ']: 이미 등록된 상품코드입니다 (' + checked.code + ').');
+    }
+    if (codeRows[checked.code]) {
+      errors.push(rowNo + '행 [' + (record.product_name || '상품명 없음') + ']: 업로드 파일 내부에서 ' + codeRows[checked.code] + '행과 상품코드가 중복됩니다.');
+    } else {
+      codeRows[checked.code] = rowNo;
+    }
+  });
+  return errors;
+}
+
 // ── 협력사 코드 자동 생성 (SUP-NNN) ──
 async function p2GenerateSupplierCode() {
   try {
@@ -462,6 +514,15 @@ async function p2HandleSubmit(e) {
   if (!data.own_code) { showToast('당사 분류코드를 입력하세요.', 'error'); return; }
   if (!data.product_name) { showToast('상품명을 입력하세요.', 'error'); return; }
 
+  var barcodeCheck = p2ValidateEan13(data.product_code);
+  if (!barcodeCheck.valid) {
+    showToast('상품코드 등록 차단: ' + barcodeCheck.message, 'error');
+    var productCodeField = document.getElementById('p2ProductCode');
+    if (productCodeField) { productCodeField.value = barcodeCheck.code; productCodeField.focus(); }
+    return;
+  }
+  data.product_code = barcodeCheck.code;
+
   // 당사 분류코드·상품코드·상품명 중복 체크 (수정 시에는 자신 제외)
   var dupOwnCode = _p2AllData.find(function(r) {
     return r.id !== _p2EditingId && r.own_code &&
@@ -776,6 +837,13 @@ function p2HandleFile(file) {
         };
       }).filter(function(r) { return r.product_name; });
 
+      var barcodeErrors = p2ValidateUploadBarcodes(_p2PendingRows, _p2AllData);
+      if (barcodeErrors.length) {
+        _p2PendingRows = [];
+        showToast('엑셀 등록 차단: ' + barcodeErrors.slice(0, 3).join(' / ') + (barcodeErrors.length > 3 ? ' 외 ' + (barcodeErrors.length - 3) + '건' : ''), 'error');
+        return;
+      }
+
       p2RenderUploadPreview();
     } catch(err) {
       showToast('엑셀 파싱 오류: ' + err.message, 'error');
@@ -820,6 +888,11 @@ async function p2ConfirmUpload() {
   try {
     // 엑셀에서 당사분류코드를 비워도 기존 최대 순번 다음의 LC 코드가 연속 생성됩니다.
     var existing = await apiGetAll('products2');
+    var uploadBarcodeErrors = p2ValidateUploadBarcodes(_p2PendingRows, existing);
+    if (uploadBarcodeErrors.length) {
+      showToast('엑셀 저장 차단: ' + uploadBarcodeErrors.slice(0, 3).join(' / ') + (uploadBarcodeErrors.length > 3 ? ' 외 ' + (uploadBarcodeErrors.length - 3) + '건' : ''), 'error');
+      return;
+    }
     var maxOwnSeq = (existing || []).reduce(function(max, record) {
       var match = String(record.own_code || '').match(/^LC-(\d+)$/i);
       return match ? Math.max(max, Number(match[1])) : max;
@@ -877,7 +950,7 @@ function p2ExportExcel() {
 function p2DownloadTemplate() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리 로드 중입니다.', 'error'); return; }
   var headers = ['당사 분류코드','상품코드','상품명','원가','중량(g)','박스입수(EA)','파렛트입수(박스)','부가세구분','상품구분(자사/OEM/수입)','소비기한','보관(냉장/냉동/상온/실온)','표준단위(EA/BOX)','HACCP 유무(있음/없음)','적정재고량(EA)','협력사코드','협력사명','주소','담당자','연락처','가로(cm)','세로(cm)','높이(cm)','내용량','내용량단위','총중량(g)','비고'];
-  var sample = ['LC-001','P001','예시 상품명','5000','200','24','40','과세','자사','제조일로부터 12월','상온','EA','있음','100','S001','(주)예시협력사','서울시 강남구','홍길동','010-0000-0000','30','20','25','200','ml','500','비고 입력'];
+  var sample = ['LC-001','8800000000008','예시 상품명','5000','200','24','40','과세','자사','제조일로부터 12월','상온','EA','있음','100','S001','(주)예시협력사','서울시 강남구','홍길동','010-0000-0000','30','20','25','200','ml','500','비고 입력'];
   var ws = XLSX.utils.aoa_to_sheet([headers, sample]);
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '양식');

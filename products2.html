@@ -237,8 +237,8 @@
             <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">📦 기본정보</div>
             <div class="form-grid form-grid-4">
               <div class="form-group span-2">
-                <label>상품코드</label>
-                <input type="text" id="p2ProductCode" placeholder="개별 상품코드" />
+                <label>상품코드 <span class="required">*</span> <small style="color:#2C5F2E;font-weight:400">EAN-13 숫자 13자리·체크디지트 검증</small></label>
+                <input type="text" id="p2ProductCode" required inputmode="numeric" maxlength="13" pattern="[0-9]{13}" placeholder="예: 8809771730480" oninput="this.value=this.value.replace(/[^0-9]/g,'');p2ValidateProductCodeField()" onblur="p2ValidateProductCodeField()" />
               </div>
               <div class="form-group span-2">
                 <label>상품명 <span class="required">*</span></label>
