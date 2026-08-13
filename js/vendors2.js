@@ -27,18 +27,18 @@ document.addEventListener('DOMContentLoaded', () => {
 async function generateVendorCode() {
   const display = document.getElementById('codeDisplay');
   if (!display) return;
+  const dateStr = (typeof today === 'function' ? today() : new Date().toISOString().slice(0, 10)).replace(/-/g, '').slice(-6);
   try {
     const res = await apiGetAll('sales_vendors');
-    const dateStr = today().replace(/-/g, '').slice(0, 8);
-    const todayCodes = res.filter(v =>
-      v.vendor_code && v.vendor_code.startsWith(`VND-${dateStr}`)
-    );
-    const seq = String(todayCodes.length + 1).padStart(3, '0');
-    display.textContent = `VND-${dateStr}-${seq}`;
+    // 날짜와 무관하게 영업팀 거래처정보2 전체에서 마지막 순번 다음 번호를 사용합니다.
+    const maxSeq = (res || []).reduce(function(max, vendor) {
+      const match = String(vendor.vendor_code || '').match(/^VND-\d{6}-(\d{3,})$/i);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    display.textContent = `VND-${dateStr}-${String(maxSeq + 1).padStart(3, '0')}`;
   } catch (e) {
-    const rand = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
-    const dateStr = today().replace(/-/g, '').slice(0, 8);
-    display.textContent = `VND-${dateStr}-${rand}`;
+    // 네트워크 재시도 전 임시 표시값입니다. 저장 시에는 서버 조회 기준의 최신 순번을 다시 확인합니다.
+    display.textContent = `VND-${dateStr}-001`;
   }
 }
 
