@@ -188,14 +188,14 @@
           <table id="p2Table">
             <thead>
               <tr>
-                <th>당사분류코드</th>
-                <th>상품코드</th>
-                <th>상품명</th>
-                <th>상품구분</th>
-                <th>박스입수(EA)</th>
-                <th>보관</th>
-                <th>협력사명</th>
-                <th>적정재고</th>
+                <th onclick="p2SetSort('own_code')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">당사분류코드 ↕</th>
+                <th onclick="p2SetSort('product_code')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">상품코드 ↕</th>
+                <th onclick="p2SetSort('product_name')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">상품명 ↕</th>
+                <th onclick="p2SetSort('product_type')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">상품구분 ↕</th>
+                <th onclick="p2SetSort('qty_per_box')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">박스입수(EA) ↕</th>
+                <th onclick="p2SetSort('storage')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">보관 ↕</th>
+                <th onclick="p2SetSort('supplier_name')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">협력사명 ↕</th>
+                <th onclick="p2SetSort('min_stock')" title="클릭하여 정렬" style="cursor:pointer;white-space:nowrap">적정재고 ↕</th>
                 <th style="width:80px">관리</th>
               </tr>
             </thead>
@@ -226,8 +226,8 @@
             <div style="font-size:12px;font-weight:700;color:#2C5F2E;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">🏷️ 분류코드</div>
             <div class="form-grid form-grid-4">
               <div class="form-group span-4">
-                <label>당사 분류코드 <span class="required">*</span></label>
-                <input type="text" id="p2OwnCode" required placeholder="당사 분류코드 (예: LC-001)" />
+                <label>당사 분류코드 <span class="required">*</span> <small style="color:#2C5F2E;font-weight:400">신규 등록 시 자동 생성</small></label>
+                <input type="text" id="p2OwnCode" required placeholder="자동 생성됩니다 (예: LC-001)" />
               </div>
             </div>
           </div>

@@ -10,6 +10,8 @@ var _p2DetailId = null;
 var _p2BoxRowCount = 1;
 var _p2PendingRows = []; // 엑셀 미리보기 임시 데이터
 var _p2VendorCache = []; // 거래처 정보 캐시
+var _p2SortField = 'own_code';
+var _p2SortDir = 'desc';
 
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,6 +48,20 @@ async function p2LoadAll() {
   } catch(e) {
     console.error('products2 로드 오류:', e);
     showToast('데이터 로드 실패: ' + e.message, 'error');
+  }
+}
+
+// ── 당사 분류코드 자동 생성 (LC-전체순번) ──
+async function p2GenerateOwnCode() {
+  try {
+    var all = await apiGetAll('products2');
+    var maxSeq = (all || []).reduce(function(max, record) {
+      var match = String(record.own_code || '').match(/^LC-(\d+)$/i);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    return 'LC-' + String(maxSeq + 1).padStart(3, '0');
+  } catch(e) {
+    return 'LC-001';
   }
 }
 
@@ -158,6 +174,36 @@ function p2SearchText(r, field) {
   return (fields[field] != null ? fields[field] : fields.all).toString().toLowerCase();
 }
 
+// ── 테이블 정렬 ──
+function p2SortValue(record, field) {
+  if (field === 'own_code') {
+    var ownMatch = String(record.own_code || '').match(/^LC-(\d+)$/i);
+    return ownMatch ? Number(ownMatch[1]) : -1;
+  }
+  if (field === 'qty_per_box' || field === 'min_stock') return Number(record[field] || 0);
+  return String(record[field] || '').trim().toLocaleLowerCase('ko-KR');
+}
+
+function p2ApplySort(rows) {
+  return rows.sort(function(a, b) {
+    var av = p2SortValue(a, _p2SortField);
+    var bv = p2SortValue(b, _p2SortField);
+    var comparison = typeof av === 'number' && typeof bv === 'number'
+      ? av - bv
+      : String(av).localeCompare(String(bv), 'ko-KR', { numeric: true, sensitivity: 'base' });
+    return _p2SortDir === 'asc' ? comparison : -comparison;
+  });
+}
+
+function p2SetSort(field) {
+  if (_p2SortField === field) _p2SortDir = _p2SortDir === 'asc' ? 'desc' : 'asc';
+  else {
+    _p2SortField = field;
+    _p2SortDir = field === 'own_code' ? 'desc' : 'asc';
+  }
+  p2RenderTable();
+}
+
 // ── 테이블 렌더링 ──
 function p2RenderTable() {
   var q = ((document.getElementById('p2Search') || {}).value || '').trim().toLowerCase();
@@ -171,6 +217,9 @@ function p2RenderTable() {
     if (q && !p2SearchText(r, sf).includes(q)) return false;
     return true;
   });
+
+  // 기본 표시: 당사분류코드의 최신 순번이 위로 오도록 정렬합니다.
+  p2ApplySort(rows);
 
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:40px">등록된 제품이 없습니다.</td></tr>';
@@ -240,7 +289,11 @@ function p2OpenModal(id) {
     }
   } else {
     if (title) title.innerHTML = '<i class="fas fa-tag" style="color:var(--primary)"></i> 신규 제품 등록';
-    // 협력사 코드 자동 생성
+    // 당사 분류코드와 협력사 코드를 각각 자동 생성합니다.
+    p2GenerateOwnCode().then(function(code) {
+      var el = document.getElementById('p2OwnCode');
+      if (el) el.value = code;
+    });
     p2GenerateSupplierCode().then(function(code) {
       var el = document.getElementById('p2SupplierCode');
       if (el) el.value = code;
@@ -401,10 +454,24 @@ function p2GetFormData() {
 async function p2HandleSubmit(e) {
   e.preventDefault();
   var data = p2GetFormData();
+  if (!data.own_code && !_p2EditingId) {
+    data.own_code = await p2GenerateOwnCode();
+    var ownCodeEl = document.getElementById('p2OwnCode');
+    if (ownCodeEl) ownCodeEl.value = data.own_code;
+  }
   if (!data.own_code) { showToast('당사 분류코드를 입력하세요.', 'error'); return; }
   if (!data.product_name) { showToast('상품명을 입력하세요.', 'error'); return; }
 
-  // 중복 체크 (신규 등록 시만, 수정 시에는 자신 제외)
+  // 당사 분류코드·상품코드·상품명 중복 체크 (수정 시에는 자신 제외)
+  var dupOwnCode = _p2AllData.find(function(r) {
+    return r.id !== _p2EditingId && r.own_code &&
+      r.own_code.trim().toLowerCase() === data.own_code.trim().toLowerCase();
+  });
+  if (dupOwnCode) {
+    showToast('당사 분류코드 [' + data.own_code + ']는 이미 등록되어 있습니다.', 'error');
+    document.getElementById('p2OwnCode') && document.getElementById('p2OwnCode').focus();
+    return;
+  }
   var dupCode = _p2AllData.find(function(r) {
     return r.id !== _p2EditingId &&
            data.product_code && r.product_code &&
@@ -751,8 +818,18 @@ async function p2ConfirmUpload() {
   if (!_p2PendingRows.length) return;
   var saved = 0;
   try {
+    // 엑셀에서 당사분류코드를 비워도 기존 최대 순번 다음의 LC 코드가 연속 생성됩니다.
+    var existing = await apiGetAll('products2');
+    var maxOwnSeq = (existing || []).reduce(function(max, record) {
+      var match = String(record.own_code || '').match(/^LC-(\d+)$/i);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
     for (var i = 0; i < _p2PendingRows.length; i++) {
       var rec = _p2PendingRows[i];
+      if (!String(rec.own_code || '').trim()) {
+        maxOwnSeq++;
+        rec.own_code = 'LC-' + String(maxOwnSeq).padStart(3, '0');
+      }
       rec.created_at = new Date().toISOString();
       await apiPost('products2', rec);
       saved++;

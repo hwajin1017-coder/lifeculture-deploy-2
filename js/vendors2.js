@@ -6,6 +6,8 @@ let filteredVendors = [];
 let currentPage = 1;
 const pageSize = 15;
 let editingId = null;
+let vendorSortField = 'vendor_code';
+let vendorSortDir = 'desc';
 
 document.addEventListener('DOMContentLoaded', () => {
   generateVendorCode();
@@ -48,8 +50,9 @@ async function generateVendorCode() {
 async function loadVendors() {
   try {
     const res = await apiGetAll('sales_vendors');
-    allVendors = res.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    allVendors = res || [];
     filteredVendors = [...allVendors];
+    applyVendorSort();
     renderTable();
     renderKpi();
   } catch (e) {
@@ -91,6 +94,40 @@ function filterTable() {
     return matchQ && matchType;
   });
   currentPage = 1;
+  applyVendorSort();
+  renderTable();
+}
+
+// ===========================
+// 테이블 정렬
+// ===========================
+function vendorSortValue(vendor, field) {
+  if (field === 'vendor_code') {
+    const match = String(vendor.vendor_code || '').match(/^VND-\d{6}-(\d{3,})$/i);
+    return match ? Number(match[1]) : -1;
+  }
+  return String(vendor[field] || '').trim().toLocaleLowerCase('ko-KR');
+}
+
+function applyVendorSort() {
+  filteredVendors.sort((a, b) => {
+    const av = vendorSortValue(a, vendorSortField);
+    const bv = vendorSortValue(b, vendorSortField);
+    const compared = typeof av === 'number' && typeof bv === 'number'
+      ? av - bv
+      : String(av).localeCompare(String(bv), 'ko-KR', { numeric: true, sensitivity: 'base' });
+    return vendorSortDir === 'asc' ? compared : -compared;
+  });
+}
+
+function setVendorSort(field) {
+  if (vendorSortField === field) vendorSortDir = vendorSortDir === 'asc' ? 'desc' : 'asc';
+  else {
+    vendorSortField = field;
+    vendorSortDir = field === 'vendor_code' ? 'desc' : 'asc';
+  }
+  currentPage = 1;
+  applyVendorSort();
   renderTable();
 }
 
