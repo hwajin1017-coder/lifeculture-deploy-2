@@ -159,6 +159,7 @@ function getSidebarHTML(activePage = '') {
       items: [
         { label: '제품마스터정보', href: 'products.html', icon: 'fa-tag', menu: 'products' },
         { label: '제품마스터정보2', href: 'products2.html', icon: 'fa-tags', menu: 'products2' },
+        { label: '거래처정보2', href: 'vendors2.html', icon: 'fa-handshake', menu: 'vendors2' },
         { label: '온라인몰 판매', href: 'sales.html', icon: 'fa-shopping-cart', menu: 'sales' }
       ]
     },

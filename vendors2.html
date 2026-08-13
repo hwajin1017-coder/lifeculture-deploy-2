@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2C5F2E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="라이프컬처" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="images/icon-512-v2.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="images/icon-192-v2.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="images/icon-192-v2.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="images/icon-192-v2.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="images/icon-512-v2.png" />
+  <link rel="shortcut icon" href="images/icon-192-v2.png" />
+  <title>거래처정보2 - 라이프컬처</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/production.css" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- 오프라인 알림 -->
+  <div class="offline-bar" id="offlineBar">
+    <i class="fas fa-wifi-slash"></i> 오프라인 상태입니다. 인터넷 연결을 확인하세요.
+  </div>
+  <div class="online-bar" id="onlineBar">
+    <i class="fas fa-check-circle"></i> 온라인 상태로 복구되었습니다.
+  </div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-wrap">
+        <div class="logo-icon"><i class="fas fa-coffee"></i></div>
+        <div class="logo-text"><span class="brand">라이프컬처</span><span class="sub">생산관리 시스템</span></div>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle"><i class="fas fa-bars"></i></button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-footer"><a href="install-guide.html" style="display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.5);text-decoration:none;font-size:12px;margin-bottom:8px;padding:6px 8px;border-radius:8px;transition:background 0.2s" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='transparent'"><i class="fas fa-mobile-alt" style="font-size:14px;color:#4a9e4d"></i> 앱 설치 가이드</a><span>LifeCulture Co.</span><span id="currentDate"></span></div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+        <h1 class="page-title"><i class="fas fa-handshake" style="color:#2C5F2E;margin-right:8px"></i>거래처정보2</h1>
+      </div>
+      <div class="topbar-right"><span class="topbar-date" id="topbarDate"></span></div>
+    </header>
+
+    <div class="content-area">
+      <!-- KPI 카드 -->
+      <div class="kpi-grid" style="margin-bottom:24px">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(44,95,46,0.1);color:#2C5F2E"><i class="fas fa-users"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-value" id="kpiTotal">0</div>
+            <div class="kpi-label">총 거래처</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(212,160,23,0.1);color:#D4A017"><i class="fas fa-truck"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-value" id="kpiSupplier">0</div>
+            <div class="kpi-label">공급업체</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(39,174,96,0.1);color:#27ae60"><i class="fas fa-store"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-value" id="kpiRetailer">0</div>
+            <div class="kpi-label">판매거래처</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(52,152,219,0.1);color:#3498db"><i class="fas fa-industry"></i></div>
+          <div class="kpi-content">
+            <div class="kpi-value" id="kpiOem">0</div>
+            <div class="kpi-label">OEM업체</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 입력 폼 -->
+      <div class="form-container">
+        <div class="form-header">
+          <div class="form-header-left">
+            <div class="form-header-icon" style="background:#f0f8f1;color:#2C5F2E"><i class="fas fa-plus-circle"></i></div>
+            <div>
+              <div class="form-title">거래처 등록</div>
+              <div class="form-subtitle">새로운 거래처 정보를 등록합니다. 거래처코드는 자동 부여됩니다.</div>
+            </div>
+          </div>
+          <div class="lot-display">
+            <div class="lot-display-label">거래처 코드</div>
+            <div class="lot-display-value" id="codeDisplay">생성 중...</div>
+          </div>
+        </div>
+
+        <form id="vendorForm">
+          <!-- 기본정보 -->
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">📋 기본 정보</div>
+          <div class="form-grid form-grid-4">
+            <div class="form-group span-2">
+              <label>거래처명 <span class="required">*</span></label>
+              <input type="text" id="f_vendor_name" required placeholder="예) OO 커피 로스팅 회사" />
+            </div>
+            <div class="form-group">
+              <label>거래구분 <span class="required">*</span></label>
+              <select id="f_vendor_type" required>
+                <option value="">선택</option>
+                <option value="공급업체">공급업체</option>
+                <option value="판매거래처">판매거래처</option>
+                <option value="OEM업체">OEM업체</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>거래상태 <span class="required">*</span></label>
+              <select id="f_trade_status" required>
+                <option value="거래중">거래중</option>
+                <option value="신규">신규</option>
+                <option value="거래중지">거래중지</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 사업자 정보 -->
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;margin-top:8px;text-transform:uppercase;letter-spacing:1px">📄 사업자 정보</div>
+          <div class="form-grid form-grid-4">
+            <div class="form-group">
+              <label>사업자등록번호</label>
+              <input type="text" id="f_registration_no" placeholder="예) 123-45-67890" />
+            </div>
+            <div class="form-group">
+              <label>대표자명</label>
+              <input type="text" id="f_representative" placeholder="대표자명" />
+            </div>
+            <div class="form-group">
+              <label>업태</label>
+              <input type="text" id="f_business_type" placeholder="예) 제조업" />
+            </div>
+            <div class="form-group">
+              <label>종목</label>
+              <input type="text" id="f_business_category" placeholder="예) 커피 로스팅" />
+            </div>
+          </div>
+
+          <!-- 주소 정보 -->
+          <div class="form-grid form-grid-4">
+            <div class="form-group span-4">
+              <label>사업장 주소</label>
+              <input type="text" id="f_address" placeholder="사업장 주소 입력" />
+            </div>
+          </div>
+
+          <!-- 담당자 정보 -->
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;margin-top:8px;text-transform:uppercase;letter-spacing:1px">👤 담당자 정보</div>
+          <div class="form-grid form-grid-4">
+            <div class="form-group">
+              <label>담당자명</label>
+              <input type="text" id="f_contact_person" placeholder="담당자명" />
+            </div>
+            <div class="form-group">
+              <label>담당자 연락처</label>
+              <input type="tel" id="f_contact_phone" placeholder="예) 010-1234-5678" />
+            </div>
+            <div class="form-group">
+              <label>담당자 이메일</label>
+              <input type="email" id="f_contact_email" placeholder="예) contact@company.com" />
+            </div>
+            <div class="form-group">
+              <label>거래시작일</label>
+              <input type="date" id="f_trade_start_date" />
+            </div>
+          </div>
+
+          <!-- 계좌 정보 -->
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;margin-top:8px;text-transform:uppercase;letter-spacing:1px">🏦 계좌 정보</div>
+          <div class="form-grid form-grid-4">
+            <div class="form-group">
+              <label>은행명</label>
+              <input type="text" id="f_bank_name" placeholder="예) 국민은행" />
+            </div>
+            <div class="form-group">
+              <label>계좌번호</label>
+              <input type="text" id="f_bank_account" placeholder="예) 123-4567-89012" />
+            </div>
+            <div class="form-group span-2">
+              <label>예금주</label>
+              <input type="text" id="f_account_holder" placeholder="예금주명" />
+            </div>
+          </div>
+
+          <!-- 첨부서류 -->
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;margin-top:8px;text-transform:uppercase;letter-spacing:1px">📎 첨부서류 관리</div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+            <div style="font-size:12px;color:#888;margin-bottom:12px">📌 파일을 직접 첨부하거나 파일명을 입력하세요. 첨부 파일은 브라우저 로컬에 저장됩니다.</div>
+
+            <!-- 사업자등록증 -->
+            <div class="form-grid form-grid-4" style="margin-bottom:12px;background:#f8f9fa;padding:12px;border-radius:8px;border:1px dashed #ccc">
+              <div class="form-group">
+                <label><i class="fas fa-file-contract" style="color:#2C5F2E"></i> 사업자등록증</label>
+                <input type="file" id="f_file_registration" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="font-size:12px" onchange="previewFile(this,'f_doc_registration_file','f_doc_registration_preview')" />
+                <input type="text" id="f_doc_registration_file" placeholder="파일명 (자동입력)" style="margin-top:4px;font-size:12px" />
+              </div>
+              <div class="form-group">
+                <label>등록일</label>
+                <input type="date" id="f_doc_registration_date" />
+              </div>
+              <div class="form-group">
+                <label>확인상태</label>
+                <select id="f_doc_registration_status">
+                  <option value="">선택</option><option value="미제출">미제출</option><option value="제출">제출</option><option value="확인">확인</option><option value="기한만료">기한만료</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>미리보기</label>
+                <div id="f_doc_registration_preview" style="font-size:11px;color:#888">파일 없음</div>
+              </div>
+            </div>
+
+            <!-- 통장사본 -->
+            <div class="form-grid form-grid-4" style="margin-bottom:12px;background:#f8f9fa;padding:12px;border-radius:8px;border:1px dashed #ccc">
+              <div class="form-group">
+                <label><i class="fas fa-credit-card" style="color:#3498db"></i> 통장사본</label>
+                <input type="file" id="f_file_bank" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="font-size:12px" onchange="previewFile(this,'f_doc_bank_file','f_doc_bank_preview')" />
+                <input type="text" id="f_doc_bank_file" placeholder="파일명 (자동입력)" style="margin-top:4px;font-size:12px" />
+              </div>
+              <div class="form-group">
+                <label>등록일</label>
+                <input type="date" id="f_doc_bank_date" />
+              </div>
+              <div class="form-group">
+                <label>확인상태</label>
+                <select id="f_doc_bank_status">
+                  <option value="">선택</option><option value="미제출">미제출</option><option value="제출">제출</option><option value="확인">확인</option><option value="기한만료">기한만료</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>미리보기</label>
+                <div id="f_doc_bank_preview" style="font-size:11px;color:#888">파일 없음</div>
+              </div>
+            </div>
+
+            <!-- 기타 서류 -->
+            <div class="form-grid form-grid-4" style="margin-bottom:12px;background:#f8f9fa;padding:12px;border-radius:8px;border:1px dashed #ccc">
+              <div class="form-group">
+                <label><i class="fas fa-file-alt" style="color:#e67e22"></i> 기타 서류</label>
+                <input type="file" id="f_file_other" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="font-size:12px" onchange="previewFile(this,'f_doc_other_file','f_doc_other_preview')" />
+                <input type="text" id="f_doc_other_file" placeholder="파일명 입력" style="margin-top:4px;font-size:12px" />
+              </div>
+              <div class="form-group">
+                <label>등록일</label>
+                <input type="date" id="f_doc_other_date" />
+              </div>
+              <div class="form-group">
+                <label>확인상태</label>
+                <select id="f_doc_other_status">
+                  <option value="">선택</option><option value="미제출">미제출</option><option value="제출">제출</option><option value="확인">확인</option><option value="기한만료">기한만료</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>미리보기</label>
+                <div id="f_doc_other_preview" style="font-size:11px;color:#888">파일 없음</div>
+              </div>
+            </div>
+
+            <!-- 추가 파일 업로드 영역 -->
+            <div id="extraFilesArea"></div>
+            <button type="button" class="btn btn-secondary" style="font-size:12px;margin-top:4px" onclick="addExtraFile()"><i class="fas fa-plus"></i> 서류 추가</button>
+          </div>
+
+          <!-- 비고 -->
+          <div class="form-grid form-grid-4">
+            <div class="form-group span-4">
+              <label>비고</label>
+              <textarea id="f_notes" placeholder="특이사항 입력" style="min-height:60px;resize:vertical"></textarea>
+            </div>
+          </div>
+
+          <div class="action-bar">
+            <button type="button" class="btn btn-secondary" onclick="resetForm()"><i class="fas fa-undo"></i> 초기화</button>
+            <button type="submit" class="btn btn-primary btn-lg" id="vendorSubmitBtn"><i class="fas fa-save"></i> 저장</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 거래처 테이블 -->
+      <div class="table-section">
+        <div class="table-header">
+          <div class="table-title">
+            <i class="fas fa-list" style="color:var(--primary)"></i> 영업팀 거래처정보2
+          </div>
+          <div class="table-actions">
+            <div class="search-bar">
+              <i class="fas fa-search"></i>
+              <input type="text" id="searchInput" placeholder="거래처명 또는 코드 검색..." oninput="filterTable()" />
+            </div>
+            <select class="btn btn-secondary" id="typeFilter" onchange="filterTable()" style="height:38px;min-width:140px">
+              <option value="">모든 거래구분</option>
+              <option value="공급업체">공급업체</option>
+              <option value="판매거래처">판매거래처</option>
+              <option value="OEM업체">OEM업체</option>
+              <option value="기타">기타</option>
+            </select>
+            <button type="button" class="btn btn-success" onclick="exportVendorsExcel()"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="vendorsTable">
+            <thead>
+              <tr>
+                <th>거래처코드</th>
+                <th>거래처명</th>
+                <th>거래구분</th>
+                <th>사업자등록번호</th>
+                <th>대표자명</th>
+                <th>담당자명</th>
+                <th>연락처</th>
+                <th>이메일</th>
+                <th>은행명</th>
+                <th>계좌번호</th>
+                <th>거래상태</th>
+                <th>거래시작일</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="vendorTableBody">
+              <tr><td colspan="13" class="loading-msg"><i class="fas fa-spinner fa-spin"></i> 로딩 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          <span id="tableCount">0건</span>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 수정 모달 -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto">
+      <div class="modal-header">
+        <h3><i class="fas fa-edit" style="color:var(--primary)"></i> 거래처 수정</h3>
+        <button class="modal-close" onclick="closeEditModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body" id="editModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEditModal()">취소</button>
+        <button class="btn btn-danger" onclick="deleteRecord()" style="margin-right:auto"><i class="fas fa-trash"></i> 삭제</button>
+        <button class="btn btn-primary" onclick="saveEdit()"><i class="fas fa-save"></i> 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 바텀 내비게이션 -->
+  <nav class="bottom-nav" id="bottomNav" style="background:#1e2329;">
+    <a href="index.html" class="bottom-nav-item"><i class="fas fa-home"></i><span>홈</span></a>
+    <button class="bottom-nav-item active" onclick="openTeamMenu('logistics')"><i class="fas fa-truck"></i><span>물류팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('production')"><i class="fas fa-industry"></i><span>생산팀</span></button>
+    <button class="bottom-nav-item" onclick="openTeamMenu('sales')"><i class="fas fa-shopping-cart"></i><span>영업팀</span></button>
+    <a href="traceability.html" class="bottom-nav-item"><i class="fas fa-search"></i><span>품질관리</span></a>
+  </nav>
+
+  <!-- 더보기 메뉴 -->
+  <div class="bottom-sheet-overlay" id="moreMenuOverlay" style="display:none"></div>
+  <div class="bottom-sheet" id="moreMenuSheet" style="display:none">
+    <div class="sheet-header">메뉴</div>
+    <div class="sheet-content">
+      <div class="nav-section" style="padding:12px 0">
+        <span class="nav-section-title">생산일지</span>
+        <a href="roasting.html" class="sheet-item"><i class="fas fa-fire"></i> 로스팅</a>
+        <a href="grinding.html" class="sheet-item"><i class="fas fa-cog"></i> 분쇄</a>
+        <a href="extraction.html" class="sheet-item"><i class="fas fa-tint"></i> 추출</a>
+        <a href="bottle-packing.html" class="sheet-item"><i class="fas fa-wine-bottle"></i> 제품(병) 포장</a>
+        <a href="box-packing.html" class="sheet-item"><i class="fas fa-boxes"></i> 완제품(박스) 포장</a>
+      </div>
+      <div class="nav-section" style="padding:12px 0">
+        <span class="nav-section-title">기타</span>
+        <a href="traceability.html" class="sheet-item"><i class="fas fa-search"></i> Lot 역추적</a>
+        <a href="install-guide.html" class="sheet-item"><i class="fas fa-mobile-alt"></i> 앱 설치 가이드</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PWA 설치 배너 -->
+  <div class="pwa-install-banner" id="pwaInstallBanner">
+    <div class="pwa-banner-icon"><img src="images/icon-192-v2.png" alt="LifeCulture" /></div>
+    <div class="pwa-banner-text">
+      <div class="pwa-banner-title">라이프컬처</div>
+      <div class="pwa-banner-sub">생산관리 시스템을 설치하세요</div>
+    </div>
+    <div class="pwa-banner-actions">
+      <button class="pwa-install-btn" onclick="installPwa()">설치</button>
+      <button class="pwa-dismiss-btn" onclick="dismissPwaBanner()">닫기</button>
+    </div>
+  </div>
+
+  <script src="js/auth.js"></script>
+      <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-init.js"></script>
+    <script src="js/db.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/pwa.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="js/vendors2.js"></script>
+  <script>
+    // 파일 미리보기
+    function previewFile(input, nameFieldId, previewId) {
+      const file = input.files[0];
+      if (!file) return;
+      const nameEl = document.getElementById(nameFieldId);
+      const previewEl = document.getElementById(previewId);
+      if (nameEl) nameEl.value = file.name;
+      if (previewEl) {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = e => { previewEl.innerHTML = `<img src="${e.target.result}" style="max-width:100%;max-height:80px;border-radius:4px;border:1px solid #ddd" />`; };
+          reader.readAsDataURL(file);
+        } else {
+          previewEl.innerHTML = `<span style="color:#2C5F2E"><i class="fas fa-file-pdf"></i> ${file.name}</span>`;
+        }
+        // Base64로 저장
+        const reader = new FileReader();
+        reader.onload = e => { input.dataset.base64 = e.target.result; input.dataset.filename = file.name; };
+        reader.readAsDataURL(file);
+      }
+    }
+    let extraFileCount = 0;
+    function addExtraFile() {
+      extraFileCount++;
+      const area = document.getElementById('extraFilesArea');
+      const div = document.createElement('div');
+      div.className = 'form-grid form-grid-4';
+      div.style.cssText = 'margin-bottom:8px;background:#f8f9fa;padding:12px;border-radius:8px;border:1px dashed #ccc';
+      div.innerHTML = `
+        <div class="form-group">
+          <label><i class="fas fa-paperclip" style="color:#888"></i> 추가서류 ${extraFileCount}</label>
+          <input type="file" id="f_file_extra_${extraFileCount}" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="font-size:12px" onchange="previewFile(this,'f_doc_extra_name_${extraFileCount}','f_doc_extra_preview_${extraFileCount}')" />
+          <input type="text" id="f_doc_extra_name_${extraFileCount}" placeholder="서류명" style="margin-top:4px;font-size:12px" />
+        </div>
+        <div class="form-group"><label>등록일</label><input type="date" id="f_doc_extra_date_${extraFileCount}" /></div>
+        <div class="form-group"><label>미리보기</label><div id="f_doc_extra_preview_${extraFileCount}" style="font-size:11px;color:#888">파일 없음</div></div>
+        <div class="form-group" style="display:flex;align-items:flex-end"><button type="button" class="btn btn-danger" style="font-size:12px" onclick="this.closest('.form-grid').remove()"><i class="fas fa-trash"></i> 삭제</button></div>`;
+      area.appendChild(div);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      const user = requireAuth('vendors2');
+      if (!user) return;
+      document.getElementById('sidebarNav').innerHTML = getSidebarHTML('vendors2.html');
+      renderUserHeader();
+      setupSidebar();
+      initDateDisplay();
+    });
+  </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+  <!-- 팀 메뉴 오버레이 -->
+  <div class="more-menu-overlay" id="teamMenuOverlay" onclick="closeTeamMenu()"></div>
+  <div class="more-menu-sheet" id="teamMenuSheet" style="display:none;background:#1e2329;">
+    <div class="more-menu-handle"></div>
+
+    <!-- 물류팀 메뉴 -->
+    <div id="teamMenu_logistics" style="display:none">
+      <div class="more-menu-title">물류팀</div>
+      <a href="materials-master.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-cubes" style="background:#e8f4fd;color:#2980b9"></i>원부재료 마스터</a>
+      <a href="raw-materials.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-box-open" style="background:#fef9e7;color:#d68910"></i>원료수불부 (자체생산)</a>
+      <a href="vendors.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-handshake" style="background:#eafaf1;color:#27ae60"></i>거래처 정보</a>
+      <a href="logistics.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-truck" style="background:#f0f4ff;color:#3498db"></i>물류관리 (수입/OEM/자체)</a>
+    </div>
+
+    <!-- 생산팀 메뉴 -->
+    <div id="teamMenu_production" style="display:none">
+      <div class="more-menu-title">생산팀 — 생산일지</div>
+      <a href="roasting.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-fire" style="background:#fff0ec;color:#e17055"></i>로스팅 생산일지</a>
+      <a href="grinding.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-cog" style="background:#f0f4ff;color:#6c5ce7"></i>분쇄 생산일지</a>
+      <a href="extraction.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-tint" style="background:#e8f4fd;color:#3498db"></i>추출 생산일지</a>
+      <a href="bottle-packing.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-wine-bottle" style="background:#e8f8f5;color:#1abc9c"></i>제품(병) 포장일지</a>
+      <a href="box-packing.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-boxes" style="background:#eafaf1;color:#27ae60"></i>완제품(박스) 포장일지</a>
+    </div>
+
+    <!-- 영업팀 메뉴 -->
+    <div id="teamMenu_sales" style="display:none">
+      <div class="more-menu-title">영업팀</div>
+      <a href="products.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-tag" style="background:#fef9e7;color:#d68910"></i>제품마스터정보</a>
+      <a href="sales.html" class="more-menu-item" onclick="closeTeamMenu()"><i class="fas fa-shopping-cart" style="background:#f8d7da;color:#c0392b"></i>온라인몰 판매</a>
+    </div>
+  </div>
+
+  <script>
+  function openTeamMenu(team) {
+    ['logistics','production','sales'].forEach(function(t){
+      var el = document.getElementById('teamMenu_' + t);
+      if (el) el.style.display = (t === team) ? 'block' : 'none';
+    });
+    document.getElementById('teamMenuOverlay').classList.add('show');
+    var sheet = document.getElementById('teamMenuSheet');
+    sheet.style.display = 'block';
+  }
+  function closeTeamMenu() {
+    document.getElementById('teamMenuOverlay').classList.remove('show');
+    document.getElementById('teamMenuSheet').style.display = 'none';
+  }
+  </script>
+</body>
+</html>

@@ -1,9 +1,9 @@
 // ================================================
-// 라이프컬처 생산관리 앱 - Service Worker v3.9
+// 라이프컬처 생산관리 앱 - Service Worker v4.0
 // 오프라인 캐싱 및 PWA 지원
 // 개선: products2/logistics2 추가, 캐시 자동 초기화
 // ================================================
-const CACHE_NAME = 'lifeculture-mes-v3.9';
+const CACHE_NAME = 'lifeculture-mes-v4.0';
 
 // JS/CSS 파일: 항상 네트워크 우선 (배포 후 즉시 최신 버전 반영)
 const NETWORK_FIRST_PATTERNS = [
@@ -37,6 +37,7 @@ const STATIC_ASSETS = [
   './install-guide.html',
   './backup.html',
   './vendors.html',
+  './vendors2.html',
   './materials-master.html',
   './products.html',
   './sales.html',
@@ -61,6 +62,7 @@ const STATIC_ASSETS = [
   './js/pwa.js',
   './js/db.js',
   './js/vendors.js',
+  './js/vendors2.js',
   './js/materials-master.js',
   './js/products.js',
   './js/sales.js',
@@ -76,7 +78,7 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('[SW] 캐싱 중... v3.9');
+      console.log('[SW] 캐싱 중... v4.0');
       const results = await Promise.allSettled(
         STATIC_ASSETS.map(url =>
           cache.add(new Request(url, { cache: 'reload' }))
@@ -86,7 +88,7 @@ self.addEventListener('install', (event) => {
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       console.log(`[SW] 캐싱 완료: ${succeeded}/${STATIC_ASSETS.length}`);
     }).then(() => {
-      console.log('[SW] 설치 완료 v3.9');
+      console.log('[SW] 설치 완료 v4.0');
       self.skipWaiting();
     })
   );

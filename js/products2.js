@@ -31,9 +31,16 @@ document.addEventListener('DOMContentLoaded', function() {
 // ── 전체 로드 ──
 async function p2LoadAll() {
   try {
-    var results = await Promise.all([apiGetAll('products2'), apiGetAll('vendors')]);
+    // 영업팀 거래처정보2를 우선 사용하고, 기존 물류팀 거래처정보는 보조 목록으로 유지합니다.
+    var results = await Promise.all([apiGetAll('products2'), apiGetAll('sales_vendors'), apiGetAll('vendors')]);
     _p2AllData = results[0] || [];
-    _p2VendorCache = results[1] || [];
+    var vendorKeys = new Set();
+    _p2VendorCache = (results[1] || []).concat(results[2] || []).filter(function(vendor) {
+      var key = String(vendor.vendor_code || vendor.vendor_name || '').trim().toLowerCase();
+      if (!key || vendorKeys.has(key)) return false;
+      vendorKeys.add(key);
+      return true;
+    });
     p2RenderKpi();
     p2RenderTable();
   } catch(e) {
