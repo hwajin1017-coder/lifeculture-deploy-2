@@ -61,11 +61,12 @@ function lg2RenderAll() {
   lg2RenderInbound();
   lg2RenderOutbound();
   lg2RenderAudit();
+  lg2RenderDefectProducts();
 }
 
 // ── 탭 전환 ──
 function lg2SwitchTab(tab) {
-  ['overview','inbound','outbound','audit'].forEach(function(t) {
+  ['overview','inbound','outbound','audit','defect'].forEach(function(t) {
     var btn = document.getElementById('lg2Tab_' + t);
     var con = document.getElementById('lg2Content_' + t);
     if (btn) btn.classList.toggle('active', t === tab);
@@ -431,6 +432,127 @@ function lg2RenderDefectSummary(rows) {
       + '<td style="font-size:12px">' + lg2esc(row.reasonText || '-') + '</td>'
       + '</tr>';
   }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// 불량제품 탭 렌더링
+// 입고·출고 데이터 중 실제로 불량으로 제외된 원본 기록만 표시합니다.
+// ══════════════════════════════════════════════════
+var _lg2DefectPage = 1;
+var _lg2DefectPageSize = 20;
+
+function lg2GetDefectProductRows() {
+  var rows = [];
+  var add = function(record, type) {
+    var defectQty = Number(record.defect_qty) || 0;
+    if (defectQty <= 0) return;
+    rows.push({
+      id: record.id,
+      type: type,
+      date: record.date || '',
+      item_name: (record.item_name || '').trim(),
+      warehouse: record.warehouse || '',
+      defect_qty: defectQty,
+      defect_reason: record.defect_reason || '사유 미입력',
+      partner: type === 'inbound' ? (record.supplier || '') : (record.destination || ''),
+      manager: record.manager || '',
+      memo: record.memo || ''
+    });
+  };
+  _lg2InboundData.forEach(function(record) { add(record, 'inbound'); });
+  _lg2OutboundData.forEach(function(record) { add(record, 'outbound'); });
+  return rows;
+}
+
+function lg2RenderDefectProducts(resetPage) {
+  if (resetPage) _lg2DefectPage = 1;
+  var type = (document.getElementById('lg2DefectType') || {}).value || '';
+  var wh = (document.getElementById('lg2DefectWarehouse') || {}).value || '';
+  var q = ((document.getElementById('lg2DefectSearch') || {}).value || '').trim().toLowerCase();
+  var rows = lg2GetDefectProductRows();
+
+  if (type) rows = rows.filter(function(row) { return row.type === type; });
+  if (wh) rows = rows.filter(function(row) { return row.warehouse === wh; });
+  if (q) rows = rows.filter(function(row) {
+    return (row.item_name || '').toLowerCase().includes(q)
+      || (row.defect_reason || '').toLowerCase().includes(q)
+      || (row.partner || '').toLowerCase().includes(q);
+  });
+  rows.sort(function(a, b) {
+    var dateOrder = (b.date || '').localeCompare(a.date || '');
+    if (dateOrder) return dateOrder;
+    return (a.item_name || '').localeCompare(b.item_name || '');
+  });
+
+  var setText = function(id, value) { var el = document.getElementById(id); if (el) el.textContent = value; };
+  var totalQty = rows.reduce(function(sum, row) { return sum + row.defect_qty; }, 0);
+  var inboundQty = rows.filter(function(row) { return row.type === 'inbound'; }).reduce(function(sum, row) { return sum + row.defect_qty; }, 0);
+  var outboundQty = rows.filter(function(row) { return row.type === 'outbound'; }).reduce(function(sum, row) { return sum + row.defect_qty; }, 0);
+  var itemCount = new Set(rows.map(function(row) { return row.item_name + '||' + row.warehouse; })).size;
+  setText('lg2DefectKpiTotal', totalQty.toLocaleString());
+  setText('lg2DefectKpiInbound', inboundQty.toLocaleString());
+  setText('lg2DefectKpiOutbound', outboundQty.toLocaleString());
+  setText('lg2DefectKpiItems', itemCount.toLocaleString());
+
+  var total = rows.length;
+  var totalPages = Math.max(1, Math.ceil(total / _lg2DefectPageSize));
+  if (_lg2DefectPage > totalPages) _lg2DefectPage = totalPages;
+  var start = (_lg2DefectPage - 1) * _lg2DefectPageSize;
+  var pageRows = rows.slice(start, start + _lg2DefectPageSize);
+  var body = document.getElementById('lg2DefectProductBody');
+  if (!body) return;
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">입고·출고에서 제외된 불량 내역이 없습니다.</td></tr>';
+    lg2RenderDefectPager(0, 0, 0);
+    return;
+  }
+
+  body.innerHTML = pageRows.map(function(row) {
+    var warehouseBadge = row.warehouse === 'W'
+      ? '<span class="badge-W">🏭 일반(W)</span>'
+      : '<span class="badge-C">❄️ 저온(C)</span>';
+    var isInbound = row.type === 'inbound';
+    var typeBadge = isInbound
+      ? '<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#d35400;font-size:11px;font-weight:700">입고 불량</span>'
+      : '<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#f3e5f5;color:#8e44ad;font-size:11px;font-weight:700">출고 불량</span>';
+    var manageButton = isInbound
+      ? '<button class="btn-secondary btn-sm" onclick="lg2OpenInboundModal(\'' + row.id + '\')"><i class="fas fa-edit"></i> 입고 수정</button>'
+      : '<button class="btn-secondary btn-sm" onclick="lg2OpenOutboundModal(\'' + row.id + '\')"><i class="fas fa-edit"></i> 출고 수정</button>';
+    return '<tr>'
+      + '<td>' + lg2esc(row.date || '-') + '</td>'
+      + '<td>' + typeBadge + '</td>'
+      + '<td><strong>' + lg2esc(row.item_name || '-') + '</strong></td>'
+      + '<td>' + warehouseBadge + '</td>'
+      + '<td style="text-align:right;color:#c0392b;font-weight:700">' + row.defect_qty.toLocaleString() + '</td>'
+      + '<td style="color:#c0392b;font-size:12px">' + lg2esc(row.defect_reason || '-') + '</td>'
+      + '<td>' + lg2esc(row.partner || '-') + '</td>'
+      + '<td>' + lg2esc(row.manager || '-') + '</td>'
+      + '<td style="font-size:12px">' + lg2esc(row.memo || '-') + '</td>'
+      + '<td style="white-space:nowrap">' + manageButton + '</td>'
+      + '</tr>';
+  }).join('');
+  lg2RenderDefectPager(total, _lg2DefectPage, totalPages);
+}
+
+function lg2RenderDefectPager(total, currentPage, totalPages) {
+  var info = document.getElementById('lg2DefectPageInfo');
+  var buttons = document.getElementById('lg2DefectPageBtns');
+  if (info) info.textContent = total ? '총 ' + total.toLocaleString() + '건 · ' + currentPage + ' / ' + totalPages + '페이지' : '';
+  if (!buttons) return;
+  if (!total) { buttons.innerHTML = ''; return; }
+  var html = '<button class="lg2-page-btn" onclick="lg2SetDefectPage(' + (currentPage - 1) + ')"' + (currentPage <= 1 ? ' disabled' : '') + '><i class="fas fa-chevron-left"></i></button>';
+  for (var page = 1; page <= totalPages; page++) {
+    html += '<button class="lg2-page-btn' + (page === currentPage ? ' active' : '') + '" onclick="lg2SetDefectPage(' + page + ')">' + page + '</button>';
+  }
+  html += '<button class="lg2-page-btn" onclick="lg2SetDefectPage(' + (currentPage + 1) + ')"' + (currentPage >= totalPages ? ' disabled' : '') + '><i class="fas fa-chevron-right"></i></button>';
+  buttons.innerHTML = html;
+}
+
+function lg2SetDefectPage(page) {
+  if (page < 1) return;
+  _lg2DefectPage = page;
+  lg2RenderDefectProducts();
 }
 
 // ══════════════════════════════════════════════════

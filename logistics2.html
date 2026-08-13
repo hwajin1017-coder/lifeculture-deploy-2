@@ -129,6 +129,7 @@
           <button class="tab-btn" onclick="lg2SwitchTab('inbound')" id="lg2Tab_inbound"><i class="fas fa-sign-in-alt"></i> 입고관리</button>
           <button class="tab-btn" onclick="lg2SwitchTab('outbound')" id="lg2Tab_outbound"><i class="fas fa-sign-out-alt"></i> 출고관리</button>
           <button class="tab-btn" onclick="lg2SwitchTab('audit')" id="lg2Tab_audit"><i class="fas fa-clipboard-check"></i> 재고실사</button>
+          <button class="tab-btn" onclick="lg2SwitchTab('defect')" id="lg2Tab_defect"><i class="fas fa-triangle-exclamation"></i> 불량제품</button>
         </div>
       </div>
 
@@ -392,6 +393,69 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════ -->
+      <!-- 불량제품 탭: 입·출고 과정에서 불량으로 제외된 수량만 표시 -->
+      <!-- ══════════════════════════════════════════ -->
+      <div class="tab-content" id="lg2Content_defect">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:700;color:#c0392b"><i class="fas fa-triangle-exclamation"></i> 불량으로 제외된 제품</div>
+          <div style="font-size:12px;color:#888">입고·출고 내역 중 불량 수량이 1ea 이상인 항목만 표시합니다.</div>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-value" id="lg2DefectKpiTotal" style="color:#c0392b">-</div><div class="kpi-label">총 불량 수량(ea)</div></div>
+          <div class="kpi-card"><div class="kpi-value" id="lg2DefectKpiInbound" style="color:#d35400">-</div><div class="kpi-label">입고 불량(ea)</div></div>
+          <div class="kpi-card"><div class="kpi-value" id="lg2DefectKpiOutbound" style="color:#8e44ad">-</div><div class="kpi-label">출고 불량(ea)</div></div>
+          <div class="kpi-card"><div class="kpi-value" id="lg2DefectKpiItems">-</div><div class="kpi-label">불량 품목 수</div></div>
+        </div>
+        <div class="filter-bar">
+          <div class="form-group">
+            <label>구분</label>
+            <select id="lg2DefectType" onchange="lg2RenderDefectProducts(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
+              <option value="">전체</option>
+              <option value="inbound">입고 불량</option>
+              <option value="outbound">출고 불량</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>창고</label>
+            <select id="lg2DefectWarehouse" onchange="lg2RenderDefectProducts(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
+              <option value="">전체</option>
+              <option value="W">🏭 일반창고(W)</option>
+              <option value="C">❄️ 저온창고(C)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>검색</label>
+            <input type="text" id="lg2DefectSearch" placeholder="품목명·불량 사유 검색..." oninput="lg2RenderDefectProducts(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:210px" />
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>발생일</th>
+                <th>구분</th>
+                <th>품목명</th>
+                <th>창고</th>
+                <th style="text-align:right">불량 수량(ea)</th>
+                <th>불량 사유</th>
+                <th>공급업체 / 출고처</th>
+                <th>담당자</th>
+                <th>비고</th>
+                <th>원본 관리</th>
+              </tr>
+            </thead>
+            <tbody id="lg2DefectProductBody">
+              <tr><td colspan="10" style="text-align:center;padding:40px;color:#aaa">불량 내역을 불러오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="lg2DefectPager" style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px">
+          <span id="lg2DefectPageInfo" style="font-size:12px;color:#888"></span>
+          <div id="lg2DefectPageBtns" style="display:flex;gap:4px;flex-wrap:wrap"></div>
         </div>
       </div>
     </div><!-- /content-area -->
