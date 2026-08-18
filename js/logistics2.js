@@ -32,7 +32,7 @@ async function lg2LoadAll() {
       apiGetAll('lg2_inbound'),
       apiGetAll('lg2_outbound'),
       apiGetAll('lg2_audit'),
-      apiGetAll('products'),
+      apiGetAll('products2'),
       apiGetAll('lg2_stocktake_config')
     ]);
     _lg2InboundData  = results[0] || [];
@@ -89,14 +89,25 @@ function lg2GetProductByBarcode(barcode) {
   if (!_lg2ProductCache || !barcode) return null;
   var bc = (barcode || '').trim();
   return _lg2ProductCache.find(function(p) {
-    return (p.barcode || '').trim() === bc;
+    // 제품마스터정보2의 EAN-13 상품코드를 기준으로 바코드를 인식합니다.
+    return String(p.product_code || p.barcode || '').trim() === bc;
   }) || null;
+}
+
+// 물류 기록에 제품마스터정보2 식별자를 보관해 상품명·상품코드 변경 후에도 정확히 추적합니다.
+function lg2GetProductLink(itemName) {
+  var product = lg2GetProduct(itemName);
+  return {
+    product_id: product && product.id ? product.id : '',
+    product_code: product ? String(product.product_code || product.barcode || '').trim() : ''
+  };
 }
 
 function lg2CalcBreakdown(ea, itemName) {
   var pm = lg2GetProduct(itemName);
   var qpb = pm ? (parseInt(pm.qty_per_box) || 0) : 0;
-  var bpp = pm ? (parseInt(pm.boxes_per_pallet) || 0) : 0;
+  // products2는 box_per_pallet, 기존 제품마스터는 boxes_per_pallet 필드를 사용하므로 모두 호환합니다.
+  var bpp = pm ? (parseInt(pm.box_per_pallet != null ? pm.box_per_pallet : pm.boxes_per_pallet) || 0) : 0;
   var box = qpb > 0 ? Math.floor(ea / qpb) : 0;
   var pt  = (qpb > 0 && bpp > 0) ? Math.floor(ea / (qpb * bpp)) : 0;
   return { ea: ea, box: box, pt: pt, qpb: qpb, bpp: bpp };
@@ -894,10 +905,13 @@ async function lg2SaveInbound() {
   var normalQty = qty - defectQty;
 
   var bd = lg2CalcBreakdown(normalQty, item);
+  var productLink = lg2GetProductLink(item);
   var data = {
     date: date,
     warehouse: wh,
     item_name: item,
+    product_id: productLink.product_id,
+    product_code: productLink.product_code,
     qty_ea: normalQty,
     received_qty_ea: qty,
     defect_qty: defectQty,
@@ -1035,10 +1049,13 @@ async function lg2SaveOutbound() {
   }
 
   var bd = lg2CalcBreakdown(qty, item);
+  var productLink = lg2GetProductLink(item);
   var data = {
     date: date,
     warehouse: wh,
     item_name: item,
+    product_id: productLink.product_id,
+    product_code: productLink.product_code,
     qty_ea: qty,
     defect_qty: defectQty,
     defect_reason: defectQty > 0 ? defectReason : '',
@@ -1154,10 +1171,13 @@ async function lg2SaveAudit() {
   if (isNaN(actualQty) || actualQty < 0) { showToast('실사 수량은 0 이상의 숫자를 입력하세요.', 'error'); return; }
   var sysQty = lg2GetTotalStock(item, wh);
 
+  var productLink = lg2GetProductLink(item);
   var data = {
     date: date,
     warehouse: wh,
     item_name: item,
+    product_id: productLink.product_id,
+    product_code: productLink.product_code,
     system_qty: sysQty,
     actual_qty: actualQty,
     diff_qty: actualQty - sysQty,
@@ -1475,6 +1495,8 @@ async function lg2ConfirmScanIn() {
     date:      date,
     warehouse: wh,
     item_name: product.product_name,
+    product_id: product.id || '',
+    product_code: String(product.product_code || product.barcode || '').trim(),
     qty_ea:    qty,
     qty_box:   bd.box,
     qty_pt:    bd.pt,
@@ -1520,6 +1542,8 @@ async function lg2ConfirmScanOut() {
     date:        date,
     warehouse:   wh,
     item_name:   product.product_name,
+    product_id:  product.id || '',
+    product_code: String(product.product_code || product.barcode || '').trim(),
     qty_ea:      qty,
     qty_box:     bd.box,
     qty_pt:      bd.pt,
@@ -1915,11 +1939,14 @@ async function lg2ParseAndSaveExcel(file, mode) {
         var warehouseRaw = String(row[iWarehouse] || '').trim().toUpperCase();
         var warehouse = (warehouseRaw.indexOf('C') >= 0 || warehouseRaw.indexOf('저온') >= 0) ? 'C' : 'W';
         var breakdown = lg2CalcBreakdown(normalQty, itemName);
+        var productLink = lg2GetProductLink(itemName);
 
         var rec = {
           date:      toDateStr(row[iDate]) || todayStr,
           warehouse: warehouse,
           item_name: itemName,
+          product_id: productLink.product_id,
+          product_code: productLink.product_code,
           qty_ea:    normalQty,
           received_qty_ea: qty,
           defect_qty: defectQty,
@@ -1965,11 +1992,14 @@ async function lg2ParseAndSaveExcel(file, mode) {
         var oWarehouseRaw = String(orow[oWarehouse] || '').trim().toUpperCase();
         var oWarehouseVal = (oWarehouseRaw.indexOf('C') >= 0 || oWarehouseRaw.indexOf('저온') >= 0) ? 'C' : 'W';
         var oBd = lg2CalcBreakdown(oQtyVal, oItemName);
+        var oProductLink = lg2GetProductLink(oItemName);
 
         var orec = {
           date:        toDateStr(orow[oDate]) || todayStr,
           warehouse:   oWarehouseVal,
           item_name:   oItemName,
+          product_id:  oProductLink.product_id,
+          product_code: oProductLink.product_code,
           qty_ea:      oQtyVal,
           defect_qty:  oDefectQtyVal,
           defect_reason: oDefectQtyVal > 0 ? oDefectReasonVal : '',
@@ -2244,10 +2274,13 @@ async function lg2AuditConfirmUpload() {
     var latestDate = '';
     for (var i = 0; i < _lg2AuditPendingRows.length; i++) {
       var row = _lg2AuditPendingRows[i];
+      var productLink = lg2GetProductLink(row.item_name);
       var rec = {
         date:        row.date,
         audit_date:  row.date,
         item_name:   row.item_name,
+        product_id:  productLink.product_id,
+        product_code: productLink.product_code,
         warehouse:   row.warehouse,
         actual_qty:  row.actual_qty,
         system_qty:  0,

@@ -355,14 +355,9 @@ async function handleSubmit(e) {
       actionMessage = '거래처가 등록되었습니다.';
     }
 
-    let syncCount = 0;
-    try {
-      syncCount = await syncVendorToProducts2(data, previousVendor);
-    } catch (syncError) {
-      console.error('[vendors2] 제품마스터정보2 동기화 실패:', syncError);
-      showToast('거래처는 저장되었지만 제품마스터정보2 동기화에 실패했습니다: ' + syncError.message, 'warning');
-    }
-    showToast(actionMessage + (syncCount ? ` 제품마스터정보2 ${syncCount}건을 동기화했습니다.` : ''), 'success');
+    // 제품마스터정보2가 기준 마스터입니다. 거래처정보2의 수정은 제품마스터정보2를 역으로 변경하지 않습니다.
+    // 협력사 정보 변경은 제품마스터정보2에서 저장할 때 연결된 거래처정보2에 반영됩니다.
+    showToast(actionMessage, 'success');
     resetForm();
     await loadVendors();
   } catch (err) {

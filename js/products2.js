@@ -551,6 +551,112 @@ function p2GetFormData() {
   };
 }
 
+// ── 제품마스터정보2 기준 연동 헬퍼 ──
+function p2SyncKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function p2BuildLogisticsLink(product) {
+  return {
+    item_name: product.product_name || '',
+    product_id: product.id || '',
+    product_code: String(product.product_code || '').trim()
+  };
+}
+
+// product_id → 상품코드 → 상품명 순으로 연관 기록을 판별합니다.
+// 기존 물류 기록처럼 식별자가 없는 데이터도 기존 상품명으로 한 번만 연결할 수 있습니다.
+function p2IsLinkedLogisticsRecord(record, product) {
+  if (!record || !product) return false;
+  var productId = String(product.id || '').trim();
+  var productCode = p2SyncKey(product.product_code);
+  var productName = p2SyncKey(product.product_name);
+  if (productId && String(record.product_id || '').trim() === productId) return true;
+  if (productCode && p2SyncKey(record.product_code) === productCode) return true;
+  return !!productName && p2SyncKey(record.item_name) === productName;
+}
+
+async function p2SyncLinkedCollections(previousProduct, nextProduct) {
+  var collections = ['lg2_inbound', 'lg2_outbound', 'lg2_audit'];
+  var linkedProducts = [previousProduct, nextProduct].filter(Boolean);
+  var linkData = p2BuildLogisticsLink(nextProduct);
+  var result = { updated: 0, errors: [] };
+
+  for (var ci = 0; ci < collections.length; ci++) {
+    var collection = collections[ci];
+    try {
+      var records = await apiGetAll(collection);
+      for (var ri = 0; ri < records.length; ri++) {
+        var record = records[ri];
+        var matched = linkedProducts.some(function(product) {
+          return p2IsLinkedLogisticsRecord(record, product);
+        });
+        if (!matched || !record.id) continue;
+        await apiPatch(collection, record.id, linkData);
+        result.updated++;
+      }
+    } catch (error) {
+      console.error('물류관리2 연동 갱신 실패(' + collection + '):', error);
+      result.errors.push(collection);
+    }
+  }
+  return result;
+}
+
+// 제품마스터정보2의 협력사 정보가 변경된 경우, 연결된 거래처정보2에 동일 정보를 반영합니다.
+// 거래처코드·거래구분·금융정보 등 거래처 고유 항목은 변경하지 않습니다.
+async function p2SyncLinkedVendor(nextProduct) {
+  var supplierCode = p2SyncKey(nextProduct.supplier_code);
+  var supplierName = p2SyncKey(nextProduct.supplier_name);
+  if (!supplierCode && !supplierName) return { updated: 0 };
+
+  var vendors = await apiGetAll('sales_vendors');
+  var targets = (vendors || []).filter(function(vendor) {
+    var vendorCode = p2SyncKey(vendor.vendor_code);
+    var vendorName = p2SyncKey(vendor.vendor_name);
+    return supplierCode ? vendorCode === supplierCode : vendorName === supplierName;
+  });
+  var updated = 0;
+  for (var i = 0; i < targets.length; i++) {
+    var vendor = targets[i];
+    // 제품마스터에서 비어 있지 않은 협력사 상세 정보만 반영해 다른 제품에서 공유하는 거래처의 정보를 안전하게 보존합니다.
+    var data = {};
+    if (String(nextProduct.supplier_name || '').trim()) data.vendor_name = nextProduct.supplier_name;
+    if (String(nextProduct.supplier_addr || '').trim()) data.address = nextProduct.supplier_addr;
+    if (String(nextProduct.supplier_contact || '').trim()) data.contact_person = nextProduct.supplier_contact;
+    if (String(nextProduct.supplier_phone || '').trim()) data.contact_phone = nextProduct.supplier_phone;
+    if (Object.keys(data).length) {
+      await apiPatch('sales_vendors', vendor.id, data);
+      updated++;
+    }
+  }
+  return { updated: updated };
+}
+
+// 기존 물류 기록에 제품마스터정보2의 식별자를 보강합니다. 일치하지 않는 과거 기록은 임의로 변경하지 않습니다.
+async function p2BackfillLogisticsLinks() {
+  var products = await apiGetAll('products2');
+  var collections = ['lg2_inbound', 'lg2_outbound', 'lg2_audit'];
+  var updated = 0;
+  for (var ci = 0; ci < collections.length; ci++) {
+    var collection = collections[ci];
+    var records = await apiGetAll(collection);
+    for (var ri = 0; ri < records.length; ri++) {
+      var record = records[ri];
+      var product = (products || []).find(function(candidate) {
+        return p2IsLinkedLogisticsRecord(record, candidate);
+      });
+      if (!product || !record.id) continue;
+      var linkData = p2BuildLogisticsLink(product);
+      if (record.item_name !== linkData.item_name || record.product_id !== linkData.product_id || record.product_code !== linkData.product_code) {
+        await apiPatch(collection, record.id, linkData);
+        updated++;
+      }
+    }
+  }
+  return updated;
+}
+
 // ── 저장 ──
 async function p2HandleSubmit(e) {
   e.preventDefault();
@@ -603,44 +709,35 @@ async function p2HandleSubmit(e) {
   }
 
   try {
-    var prevName = null;
     if (_p2EditingId) {
-      var prev = _p2AllData.find(function(r) { return r.id === _p2EditingId; });
-      if (prev) prevName = prev.product_name;
+      var previousProduct = _p2AllData.find(function(r) { return r.id === _p2EditingId; });
+      var nextProduct = Object.assign({ id: _p2EditingId }, data);
       await apiPut('products2', _p2EditingId, data);
-      showToast('수정되었습니다.', 'success');
-      // 이름 변경 시 물류관리2 연동 갱신
-      if (prevName && prevName !== data.product_name) {
-        p2SyncLinkedCollections(prevName, data.product_name);
+
+      var logisticsResult = await p2SyncLinkedCollections(previousProduct, nextProduct);
+      var vendorResult = await p2SyncLinkedVendor(nextProduct);
+      if (logisticsResult.errors.length) {
+        showToast('제품정보는 수정되었으나 일부 물류 연동에 실패했습니다: ' + logisticsResult.errors.join(', '), 'warning');
+      } else {
+        showToast('수정되었습니다. 물류관리2 ' + logisticsResult.updated + '건, 거래처정보2 ' + vendorResult.updated + '건을 동기화했습니다.', 'success');
       }
     } else {
       data.created_at = new Date().toISOString();
-      await apiPost('products2', data);
-      showToast('등록되었습니다.', 'success');
+      var createdProduct = await apiPost('products2', data);
+      var nextProduct = Object.assign({ id: createdProduct.id }, data);
+      var createdLogisticsResult = await p2SyncLinkedCollections(null, nextProduct);
+      var createdVendorResult = await p2SyncLinkedVendor(nextProduct);
+      if (createdLogisticsResult.errors.length) {
+        showToast('제품은 등록되었으나 일부 물류 연동에 실패했습니다: ' + createdLogisticsResult.errors.join(', '), 'warning');
+      } else {
+        showToast('등록되었습니다. 물류관리2 ' + createdLogisticsResult.updated + '건, 거래처정보2 ' + createdVendorResult.updated + '건을 동기화했습니다.', 'success');
+      }
     }
     p2CloseModal();
     await p2LoadAll();
   } catch(err) {
-    showToast('저장 실패: ' + err.message, 'error');
-  }
-}
-
-// ── 물류관리2 연동 갱신 (상품명 변경 시) ──
-async function p2SyncLinkedCollections(oldName, newName) {
-  var collections = ['lg2_inbound', 'lg2_outbound', 'lg2_audit'];
-  for (var ci = 0; ci < collections.length; ci++) {
-    try {
-      var col = collections[ci];
-      var recs = await apiGetAll(col);
-      for (var ri = 0; ri < recs.length; ri++) {
-        var r = recs[ri];
-        if ((r.item_name || '').trim() === oldName.trim() && r.id) {
-          await apiPut(col, r.id, { item_name: newName });
-        }
-      }
-    } catch(e) {
-      console.warn('연동 갱신 실패(' + collections[ci] + '):', e.message);
-    }
+    console.error('products2 저장·연동 오류:', err);
+    showToast('저장 또는 연동 실패: ' + err.message, 'error');
   }
 }
 
@@ -648,22 +745,23 @@ async function p2SyncLinkedCollections(oldName, newName) {
 async function p2DeleteProduct(id, name) {
   if (!confirm('"' + name + '"을(를) 삭제하시겠습니까?\n관련 물류관리2 데이터도 함께 삭제됩니다.')) return;
   try {
+    var product = _p2AllData.find(function(record) { return record.id === id; }) || { id: id, product_name: name };
     await apiDelete('products2', id);
-    // 물류관리2 연동 삭제
     var collections = ['lg2_inbound', 'lg2_outbound', 'lg2_audit'];
+    var deleted = 0;
     for (var ci = 0; ci < collections.length; ci++) {
-      try {
-        var recs = await apiGetAll(collections[ci]);
-        for (var ri = 0; ri < recs.length; ri++) {
-          if ((recs[ri].item_name || '').trim() === name.trim() && recs[ri].id) {
-            await apiDelete(collections[ci], recs[ri].id);
-          }
+      var records = await apiGetAll(collections[ci]);
+      for (var ri = 0; ri < records.length; ri++) {
+        if (p2IsLinkedLogisticsRecord(records[ri], product) && records[ri].id) {
+          await apiDelete(collections[ci], records[ri].id);
+          deleted++;
         }
-      } catch(e) { console.warn('연동 삭제 실패:', e.message); }
+      }
     }
-    showToast('삭제되었습니다.', 'success');
+    showToast('삭제되었습니다. 관련 물류관리2 ' + deleted + '건도 함께 삭제했습니다.', 'success');
     await p2LoadAll();
   } catch(err) {
+    console.error('products2 삭제·연동 오류:', err);
     showToast('삭제 실패: ' + err.message, 'error');
   }
 }
@@ -956,7 +1054,8 @@ async function p2ConfirmUpload() {
       await apiPost('products2', rec);
       saved++;
     }
-    showToast(saved + '건 등록되었습니다.', 'success');
+    var linkedCount = await p2BackfillLogisticsLinks();
+    showToast(saved + '건 등록되었습니다.' + (linkedCount ? ' 기존 물류관리2 ' + linkedCount + '건을 기준 제품에 연결했습니다.' : ''), 'success');
     p2CancelUpload();
     await p2LoadAll();
   } catch(e) {

@@ -512,9 +512,8 @@ async function handleSubmit(e) {
           { col: 'logistics',          field: 'product_name' },
           { col: 'wh_inbound',         field: 'item_name' },
           { col: 'wh_outbound',        field: 'item_name' },
-          { col: 'lg2_inbound',        field: 'item_name' },
-          { col: 'lg2_outbound',       field: 'item_name' },
-          { col: 'lg2_audit',          field: 'item_name' },
+          // 물류관리2는 제품마스터정보2(products2)를 기준으로 관리합니다.
+          // 기존 제품마스터(products)는 물류관리2를 변경하지 않습니다.
           { col: 'sales',              field: 'product_name' },
         ];
         let totalUpdated = 0;
@@ -570,7 +569,7 @@ async function handleSubmit(e) {
 // 데이터 삭제
 // ===========================
 async function deleteProduct(id) {
-  if (!confirm('정말 삭제하시겠습니까?\n\n※ 이 제품과 연관된 물류관리2 입고/출고/실사 데이터도 함께 삭제됩니다.')) return;
+  if (!confirm('정말 삭제하시겠습니까?\n\n※ 물류관리2는 제품마스터정보2를 기준으로 관리되므로 영향을 받지 않습니다.')) return;
   try {
     // 삭제할 제품명 먼저 확인
     const target = allProducts.find(p => p.id === id);
@@ -582,9 +581,7 @@ async function deleteProduct(id) {
     // 2. 연동 컬렉션에서 해당 제품명 레코드 삭제
     if (targetName) {
       const linkedCols = [
-        { col: 'lg2_inbound',        field: 'item_name' },
-        { col: 'lg2_outbound',       field: 'item_name' },
-        { col: 'lg2_audit',          field: 'item_name' },
+        // 물류관리2는 제품마스터정보2(products2) 기준으로 별도 관리합니다.
         { col: 'wh_inbound',         field: 'item_name' },
         { col: 'wh_outbound',        field: 'item_name' },
       ];

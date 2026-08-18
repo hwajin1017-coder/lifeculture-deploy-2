@@ -364,16 +364,16 @@ async function loadStockAlert() {
     soon.setDate(soon.getDate() + 30);
     const soonStr = soon.toISOString().split('T')[0]; // 30일 이내 소비기한 기준
 
-    // 물류관리2 데이터 및 제품마스터 병렬 조회
+    // 물류관리2 데이터 및 제품마스터정보2 기준 정보 병렬 조회
     const [inboundRes, outboundRes, auditRes, configRes, productsRes] = await Promise.all([
       apiGetAll('lg2_inbound').catch(() => []),
       apiGetAll('lg2_outbound').catch(() => []),
       apiGetAll('lg2_audit').catch(() => []),
       apiGetAll('lg2_stocktake_config').catch(() => []),
-      apiGetAll('products').catch(() => [])
+      apiGetAll('products2').catch(() => [])
     ]);
 
-    // 제품마스터 적정재고량 맵 { 품목명: min_stock }
+    // 제품마스터정보2 적정재고량 맵 { 품목명: min_stock }
     const minStockMap = {};
     (productsRes || []).forEach(p => {
       if (p.product_name && p.min_stock > 0) minStockMap[p.product_name] = p.min_stock;
