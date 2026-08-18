@@ -894,7 +894,7 @@ async function lg2SaveInbound() {
   var editId  = getVal('lg2InEditId');
 
   if (!date || !wh || !item || !qtyStr) {
-    showToast('입고일, 창고, 품목명, 수량은 필수 입력 항목입니다.', 'error');
+    showToast('입고일, 창고, 상품명, 수량은 필수 입력 항목입니다.', 'error');
     return;
   }
   var qty = parseInt(qtyStr);
@@ -1031,7 +1031,7 @@ async function lg2SaveOutbound() {
   var editId = getVal('lg2OutEditId');
 
   if (!date || !wh || !item || !qtyStr) {
-    showToast('출고일, 창고, 품목명, 수량은 필수 입력 항목입니다.', 'error');
+    showToast('출고일, 창고, 상품명, 수량은 필수 입력 항목입니다.', 'error');
     return;
   }
   var qty = parseInt(qtyStr);
@@ -1164,7 +1164,7 @@ async function lg2SaveAudit() {
   var editId = getVal('lg2AuditEditId');
 
   if (!date || !wh || !item || actual === '') {
-    showToast('실사일, 창고, 품목명, 실사수량은 필수 입력 항목입니다.', 'error');
+    showToast('실사일, 창고, 상품명, 실사수량은 필수 입력 항목입니다.', 'error');
     return;
   }
   var actualQty = parseInt(actual);
@@ -1655,7 +1655,7 @@ function lg2ExportExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
   var wb = XLSX.utils.book_new();
   // 전체현황 시트
-  var ovRows = [['품목명','창고','소비기한','입고(ea)','출고(ea)','현재고(ea)','현재고(Box)','현재고(PT)','상태']];
+  var ovRows = [['상품명','창고','소비기한','입고(ea)','출고(ea)','현재고(ea)','현재고(Box)','현재고(PT)','상태']];
   var itemSet = {};
   _lg2InboundData.forEach(function(r) {
     var key = (r.item_name || '').trim() + '||' + (r.warehouse || '');
@@ -1671,27 +1671,27 @@ function lg2ExportExcel() {
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ovRows), '전체현황');
   // 불량 현황 시트
-  var defectRows = [['품목명','창고','입고 불량(ea)','출고 불량(ea)','불량 수량(ea)','불량률','불량 사유']];
+  var defectRows = [['상품명','창고','입고 불량(ea)','출고 불량(ea)','불량 수량(ea)','불량률','불량 사유']];
   lg2GetDefectSummary('', '').forEach(function(r) {
     defectRows.push([r.name, r.warehouse === 'W' ? '일반창고(W)' : '저온창고(C)', r.inboundDefect, r.outboundDefect, r.defectQty, r.defectRate.toFixed(2) + '%', r.reasonText || '']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(defectRows), '불량현황');
   // 입고 시트
-  var inRows = [['입고일','품목명','창고','총입고(ea)','불량(ea)','불량사유','Box','PT','소비기한','공급업체','담당자','비고']];
+  var inRows = [['입고일','상품명','창고','총입고(ea)','불량(ea)','불량사유','Box','PT','소비기한','공급업체','담당자','비고']];
   _lg2InboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
     inRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.received_qty_ea !== undefined && r.received_qty_ea !== null ? r.received_qty_ea : ((Number(r.qty_ea)||0) + (Number(r.defect_qty)||0)),Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.expiry||'',r.supplier||'',r.manager||'',r.memo||'']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inRows), '입고관리');
   // 출고 시트
-  var outRows = [['출고일','품목명','창고','수량(ea)','불량(ea)','불량사유','Box','PT','출고처','담당자','비고']];
+  var outRows = [['출고일','상품명','창고','수량(ea)','불량(ea)','불량사유','Box','PT','출고처','담당자','비고']];
   _lg2OutboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
     outRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.destination||'',r.manager||'',r.memo||'']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(outRows), '출고관리');
   // 재고실사 시트
-  var auditRows = [['실사일','품목명','창고','시스템재고(ea)','실사수량(ea)','차이(ea)','소비기한','담당자','비고']];
+  var auditRows = [['실사일','상품명','창고','시스템재고(ea)','실사수량(ea)','차이(ea)','소비기한','담당자','비고']];
   _lg2AuditData.forEach(function(r) {
     auditRows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.system_qty||0,r.actual_qty||0,r.diff_qty||0,r.expiry||'',r.manager||'',r.memo||'']);
   });
@@ -1702,7 +1702,7 @@ function lg2ExportExcel() {
 
 function lg2ExportInboundExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var rows = [['입고일','품목명','창고','총입고(ea)','불량(ea)','불량사유','Box','PT','소비기한','공급업체','담당자','비고']];
+  var rows = [['입고일','상품명','창고','총입고(ea)','불량(ea)','불량사유','Box','PT','소비기한','공급업체','담당자','비고']];
   _lg2InboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
     rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.received_qty_ea !== undefined && r.received_qty_ea !== null ? r.received_qty_ea : ((Number(r.qty_ea)||0) + (Number(r.defect_qty)||0)),Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.expiry||'',r.supplier||'',r.manager||'',r.memo||'']);
@@ -1715,7 +1715,7 @@ function lg2ExportInboundExcel() {
 
 function lg2ExportOutboundExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var rows = [['출고일','품목명','창고','수량(ea)','불량(ea)','불량사유','Box','PT','출고처','담당자','비고']];
+  var rows = [['출고일','상품명','창고','수량(ea)','불량(ea)','불량사유','Box','PT','출고처','담당자','비고']];
   _lg2OutboundData.forEach(function(r) {
     var bd = lg2CalcBreakdown(r.qty_ea||0, r.item_name);
     rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.qty_ea||0,Number(r.defect_qty)||0,r.defect_reason||'',bd.box,bd.pt,r.destination||'',r.manager||'',r.memo||'']);
@@ -1728,7 +1728,7 @@ function lg2ExportOutboundExcel() {
 
 function lg2ExportAuditExcel() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var rows = [['실사일','품목명','창고','시스템재고(ea)','실사수량(ea)','차이(ea)','소비기한','담당자','비고']];
+  var rows = [['실사일','상품명','창고','시스템재고(ea)','실사수량(ea)','차이(ea)','소비기한','담당자','비고']];
   _lg2AuditData.forEach(function(r) {
     rows.push([r.date||'',r.item_name||'',r.warehouse==='W'?'일반창고(W)':'저온창고(C)',r.system_qty||0,r.actual_qty||0,r.diff_qty||0,r.expiry||'',r.manager||'',r.memo||'']);
   });
@@ -1911,7 +1911,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
     if (mode === 'inbound') {
       var iDate      = col(['입고일', '날짜', 'date']);
       var iWarehouse = col(['창고', 'warehouse']);
-      var iItem      = col(['품목명', '품목', '제품명', '제품', 'item', 'product']);
+      var iItem      = col(['상품명', '품목명', '품목', '제품명', '제품', 'item', 'product']);
       var iQty       = col(['총입고', '수량', '정상입고', 'ea', 'qty', 'quantity']);
       var iDefectQty = col(['불량수량', '불량 수량', '불량(ea)', '불량', 'defect_qty']);
       var iDefectReason = col(['불량사유', '불량 사유', 'defect_reason']);
@@ -1921,7 +1921,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
       var iMemo      = col(['비고', '메모', 'memo', 'note', 'remark']);
 
       if (iItem < 0) {
-        showToast('품목명 열을 찾을 수 없습니다. 양식을 확인해주세요.', 'error');
+        showToast('상품명 열을 찾을 수 없습니다. 양식을 확인해주세요.', 'error');
         return;
       }
 
@@ -1966,7 +1966,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
     } else {
       var oDate      = col(['출고일', '날짜', 'date']);
       var oWarehouse = col(['창고', 'warehouse']);
-      var oItem      = col(['품목명', '품목', '제품명', '제품', 'item', 'product']);
+      var oItem      = col(['상품명', '품목명', '품목', '제품명', '제품', 'item', 'product']);
       var oQty       = col(['수량', 'ea', 'qty', 'quantity']);
       var oDefectQty = col(['불량수량', '불량 수량', '불량(ea)', '불량', 'defect_qty']);
       var oDefectReason = col(['불량사유', '불량 사유', 'defect_reason']);
@@ -1975,7 +1975,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
       var oMemo      = col(['비고', '메모', 'memo', 'note', 'remark']);
 
       if (oItem < 0) {
-        showToast('품목명 열을 찾을 수 없습니다. 양식을 확인해주세요.', 'error');
+        showToast('상품명 열을 찾을 수 없습니다. 양식을 확인해주세요.', 'error');
         return;
       }
 
@@ -2038,7 +2038,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
 
 function lg2DownloadInboundTemplate() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var header = ['입고일', '창고(W=일반/C=저온)', '품목명', '총입고(ea)', '불량수량(ea)', '불량사유', '소비기한', '공급업체', '담당자', '비고'];
+  var header = ['입고일', '창고(W=일반/C=저온)', '상품명', '총입고(ea)', '불량수량(ea)', '불량사유', '소비기한', '공급업체', '담당자', '비고'];
   var example = [
     new Date().toISOString().split('T')[0],
     'W',
@@ -2064,7 +2064,7 @@ function lg2DownloadInboundTemplate() {
 
 function lg2DownloadOutboundTemplate() {
   if (typeof XLSX === 'undefined') { showToast('엑셀 라이브러리가 로드되지 않았습니다.', 'error'); return; }
-  var header = ['출고일', '창고(W=일반/C=저온)', '품목명', '수량(ea)', '불량수량(ea)', '불량사유', '출고체', '담당자', '비고'];
+  var header = ['출고일', '창고(W=일반/C=저온)', '상품명', '수량(ea)', '불량수량(ea)', '불량사유', '출고체', '담당자', '비고'];
   var example = [
     new Date().toISOString().split('T')[0],
     'W',
@@ -2190,13 +2190,13 @@ function lg2AuditParseExcel(file) {
       }
 
       var iDate    = col(['실사일', '날짜', 'date']);
-      var iItem    = col(['품목명', '품목', '제품명', 'item', 'product']);
+      var iItem    = col(['상품명', '품목명', '품목', '제품명', 'item', 'product']);
       var iWh      = col(['창고', 'warehouse']);
       var iQty     = col(['실재고량', '실재고', '실사수량', '수량', 'qty', 'quantity']);
       var iExpiry  = col(['소비기한', '유통기한', 'expiry', 'expire']);
 
       if (iItem < 0 || iQty < 0) {
-        showToast('품목명 또는 실재고량 컬럼을 찾을 수 없습니다.', 'error');
+        showToast('상품명 또는 실재고량 컬럼을 찾을 수 없습니다.', 'error');
         return;
       }
 
@@ -2384,7 +2384,7 @@ function lg2AuditAddRow() {
     var scrollEl = container.closest('div[style*="overflow-y"]');
     if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   }
-  // 새 행 품목명 입력에 포커스
+  // 새 행 상품명 입력에 포커스
   var newIdx = _lg2AuditPendingRows.length - 1;
   var newRow = document.getElementById('lg2AuditRow_' + newIdx);
   if (newRow) {

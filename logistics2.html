@@ -171,7 +171,7 @@
           </div>
           <div class="form-group">
             <label>검색</label>
-            <input type="text" id="lg2OvSearch" placeholder="품목명 검색..." oninput="lg2RenderOverview()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+            <input type="text" id="lg2OvSearch" placeholder="상품명 검색..." oninput="lg2RenderOverview()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
           </div>
           <div class="form-group" style="display:flex;align-items:flex-end">
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;margin-bottom:0">
@@ -183,7 +183,7 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>품목명</th>
+                <th>상품명</th>
                 <th>창고</th>
                 <th>소비기한</th>
                 <th style="text-align:right">입고(ea)</th>
@@ -206,7 +206,7 @@
           </div>
           <div class="table-container" style="margin:0">
             <table class="data-table">
-              <thead><tr><th>품목명</th><th>창고</th><th style="text-align:right">입고 불량(ea)</th><th style="text-align:right">출고 불량(ea)</th><th style="text-align:right">불량 수량(ea)</th><th style="text-align:right">불량률</th><th>불량 사유</th></tr></thead>
+              <thead><tr><th>상품명</th><th>창고</th><th style="text-align:right">입고 불량(ea)</th><th style="text-align:right">출고 불량(ea)</th><th style="text-align:right">불량 수량(ea)</th><th style="text-align:right">불량률</th><th>불량 사유</th></tr></thead>
               <tbody id="lg2DefectBody"><tr><td colspan="7" style="text-align:center;padding:22px;color:#aaa">불량 등록 내역이 없습니다.</td></tr></tbody>
             </table>
           </div>
@@ -223,7 +223,7 @@
           <button class="btn btn-secondary btn-sm" onclick="lg2ExportInboundExcel()"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
           <button class="btn btn-secondary btn-sm" onclick="lg2DownloadInboundTemplate()" style="background:#e8f5e9;color:#27ae60;border-color:#a5d6a7"><i class="fas fa-file-download"></i> 양식 다운로드</button>
           <div style="flex:1"></div>
-          <input type="text" id="lg2InSearch" placeholder="품목명 검색..." oninput="lg2RenderInbound(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+          <input type="text" id="lg2InSearch" placeholder="상품명 검색..." oninput="lg2RenderInbound(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
           <select id="lg2InWarehouse" onchange="lg2RenderInbound(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
             <option value="">전체 창고</option>
             <option value="W">🏭 일반창고(W)</option>
@@ -242,7 +242,7 @@
             <thead>
               <tr>
                 <th>입고일</th>
-                <th>품목명</th>
+                <th>상품명</th>
                 <th>창고</th>
                 <th style="text-align:right">정상입고(ea)</th>
                 <th style="text-align:right">불량(ea)</th>
@@ -277,7 +277,7 @@
           <button class="btn btn-secondary btn-sm" onclick="lg2ExportOutboundExcel()"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>
           <button class="btn btn-secondary btn-sm" onclick="lg2DownloadOutboundTemplate()" style="background:#e8f5e9;color:#27ae60;border-color:#a5d6a7"><i class="fas fa-file-download"></i> 양식 다운로드</button>
           <div style="flex:1"></div>
-          <input type="text" id="lg2OutSearch" placeholder="품목명 검색..." oninput="lg2RenderOutbound(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+          <input type="text" id="lg2OutSearch" placeholder="상품명 검색..." oninput="lg2RenderOutbound(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
           <select id="lg2OutWarehouse" onchange="lg2RenderOutbound(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
             <option value="">전체 창고</option>
             <option value="W">🏭 일반창고(W)</option>
@@ -296,7 +296,7 @@
             <thead>
               <tr>
                 <th>출고일</th>
-                <th>품목명</th>
+                <th>상품명</th>
                 <th>창고</th>
                 <th style="text-align:right">수량(ea)</th>
                 <th style="text-align:right">불량(ea)</th>
@@ -330,7 +330,7 @@
           <button class="btn btn-secondary btn-sm" onclick="lg2ExportAuditExcel()"><i class="fas fa-file-excel"></i> 엑셀</button>
           <button class="btn btn-danger btn-sm" id="lg2AuditDeleteSelectedBtn" onclick="lg2DeleteSelectedAudit()" style="display:none"><i class="fas fa-trash"></i> 선택 삭제 (<span id="lg2AuditSelectedCount">0</span>건)</button>
           <div style="flex:1"></div>
-          <input type="text" id="lg2AuditSearch" placeholder="품목명 검색..." oninput="lg2RenderAudit()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
+          <input type="text" id="lg2AuditSearch" placeholder="상품명 검색..." oninput="lg2RenderAudit()" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:180px" />
         </div>
         <div class="table-container">
           <table class="data-table">
@@ -338,7 +338,7 @@
               <tr>
                 <th style="width:36px;text-align:center"><input type="checkbox" id="lg2AuditSelectAll" onchange="lg2AuditToggleAll(this)" title="전체 선택" /></th>
                 <th>실사일</th>
-                <th>품목명</th>
+                <th>상품명</th>
                 <th>창고</th>
                 <th style="text-align:right">시스템재고(ea)</th>
                 <th style="text-align:right">실사수량(ea)</th>
@@ -361,7 +361,7 @@
             <i class="fas fa-file-excel" style="color:#fff;font-size:18px"></i>
             <div style="color:#fff">
               <div style="font-size:14px;font-weight:700">엑셀 파일로 실사 일괄 등록</div>
-              <div style="font-size:11px;opacity:0.85;margin-top:2px">실사일 · 품목명 · 창고 · 실재고량 · 소비기한 컬럼이 포함된 엑셀 파일을 드래그&드롭 또는 클릭하여 업로드하세요.</div>
+              <div style="font-size:11px;opacity:0.85;margin-top:2px">실사일 · 상품명 · 창고 · 실재고량 · 소비기한 컬럼이 포함된 엑셀 파일을 드래그&드롭 또는 클릭하여 업로드하세요.</div>
             </div>
           </div>
           <div style="padding:16px;background:#f0faf4">
@@ -373,7 +373,7 @@
               style="border:2px dashed #27ae60;border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:#fff;transition:background 0.2s">
               <div style="font-size:36px;margin-bottom:8px">📂</div>
               <div style="font-size:14px;font-weight:600;color:#27ae60">엑셀 파일을 여기에 드래그하거나 클릭하여 선택</div>
-              <div style="font-size:12px;color:#888;margin-top:6px">.xlsx / .xls 파일 지원 · 헤더: 실사일, 품목명, 창고, 실재고량, 소비기한</div>
+              <div style="font-size:12px;color:#888;margin-top:6px">.xlsx / .xls 파일 지원 · 헤더: 실사일, 상품명, 창고, 실재고량, 소비기한</div>
             </div>
             <input type="file" id="lg2AuditFileInput" accept=".xlsx,.xls" style="display:none" onchange="lg2AuditHandleFileInput(this)" />
             <div id="lg2AuditUploadPreview" style="display:none;margin-top:14px">
@@ -387,7 +387,7 @@
               </div>
               <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
                 <table class="data-table" id="lg2AuditPreviewTable">
-                  <thead><tr><th>실사일</th><th>품목명</th><th>창고</th><th style="text-align:right">실재고량</th><th>소비기한</th><th style="text-align:center">관리</th></tr></thead>
+                  <thead><tr><th>실사일</th><th>상품명</th><th>창고</th><th style="text-align:right">실재고량</th><th>소비기한</th><th style="text-align:center">관리</th></tr></thead>
                   <tbody id="lg2AuditPreviewBody"></tbody>
                 </table>
               </div>
@@ -429,7 +429,7 @@
           </div>
           <div class="form-group">
             <label>검색</label>
-            <input type="text" id="lg2DefectSearch" placeholder="품목명·불량 사유 검색..." oninput="lg2RenderDefectProducts(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:210px" />
+            <input type="text" id="lg2DefectSearch" placeholder="상품명·불량 사유 검색..." oninput="lg2RenderDefectProducts(true)" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;width:210px" />
           </div>
         </div>
         <div class="table-container">
@@ -438,7 +438,7 @@
               <tr>
                 <th>발생일</th>
                 <th>구분</th>
-                <th>품목명</th>
+                <th>상품명</th>
                 <th>창고</th>
                 <th style="text-align:right">불량 수량(ea)</th>
                 <th>불량 사유</th>
@@ -487,9 +487,9 @@
         </div>
         <div class="form-row full">
           <div class="form-group">
-            <label>품목명 <span style="color:#e74c3c">*</span></label>
+            <label>상품명 <span style="color:#e74c3c">*</span></label>
             <div class="autocomplete-wrap">
-              <input type="text" id="lg2InItem" placeholder="품목명 입력 또는 선택..." oninput="lg2Autocomplete('lg2InItem','lg2InItemList')" autocomplete="off" />
+              <input type="text" id="lg2InItem" placeholder="상품명 입력 또는 선택..." oninput="lg2Autocomplete('lg2InItem','lg2InItemList')" autocomplete="off" />
               <div class="autocomplete-list" id="lg2InItemList" style="display:none"></div>
             </div>
           </div>
@@ -566,9 +566,9 @@
         </div>
         <div class="form-row full">
           <div class="form-group">
-            <label>품목명 <span style="color:#e74c3c">*</span></label>
+            <label>상품명 <span style="color:#e74c3c">*</span></label>
             <div class="autocomplete-wrap">
-              <input type="text" id="lg2OutItem" placeholder="품목명 입력 또는 선택..." oninput="lg2Autocomplete('lg2OutItem','lg2OutItemList')" autocomplete="off" />
+              <input type="text" id="lg2OutItem" placeholder="상품명 입력 또는 선택..." oninput="lg2Autocomplete('lg2OutItem','lg2OutItemList')" autocomplete="off" />
               <div class="autocomplete-list" id="lg2OutItemList" style="display:none"></div>
             </div>
           </div>
@@ -644,9 +644,9 @@
         </div>
         <div class="form-row full">
           <div class="form-group">
-            <label>품목명 <span style="color:#e74c3c">*</span></label>
+            <label>상품명 <span style="color:#e74c3c">*</span></label>
             <div class="autocomplete-wrap">
-              <input type="text" id="lg2AuditItem" placeholder="품목명 입력 또는 선택..." oninput="lg2Autocomplete('lg2AuditItem','lg2AuditItemList');lg2UpdateAuditSystem()" autocomplete="off" />
+              <input type="text" id="lg2AuditItem" placeholder="상품명 입력 또는 선택..." oninput="lg2Autocomplete('lg2AuditItem','lg2AuditItemList');lg2UpdateAuditSystem()" autocomplete="off" />
               <div class="autocomplete-list" id="lg2AuditItemList" style="display:none"></div>
             </div>
           </div>

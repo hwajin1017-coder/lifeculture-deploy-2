@@ -576,6 +576,29 @@ function p2IsLinkedLogisticsRecord(record, product) {
   return !!productName && p2SyncKey(record.item_name) === productName;
 }
 
+// 공백·구두점 차이만 있는 과거 품목명을 제품마스터정보2의 상품명에 안전하게 연결합니다.
+// 포함 관계가 성립하는 후보가 정확히 하나일 때만 자동 보정하여 다른 상품으로 잘못 변경되는 것을 방지합니다.
+function p2NormalizeProductName(value) {
+  return String(value || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, '');
+}
+
+function p2FindCanonicalProductForLogisticsRecord(record, products) {
+  var exact = (products || []).find(function(product) {
+    return p2IsLinkedLogisticsRecord(record, product);
+  });
+  if (exact) return exact;
+
+  // 제품 ID 또는 상품코드가 이미 있는 기록은 그 식별자를 최우선으로 사용하며, 이름 유사도로 덮어쓰지 않습니다.
+  if (String(record.product_id || '').trim() || String(record.product_code || '').trim()) return null;
+  var logisticsName = p2NormalizeProductName(record.item_name);
+  if (logisticsName.length < 4) return null;
+  var candidates = (products || []).filter(function(product) {
+    var masterName = p2NormalizeProductName(product.product_name);
+    return masterName.length >= 4 && (masterName.indexOf(logisticsName) >= 0 || logisticsName.indexOf(masterName) >= 0);
+  });
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
 async function p2SyncLinkedCollections(previousProduct, nextProduct) {
   var collections = ['lg2_inbound', 'lg2_outbound', 'lg2_audit'];
   var linkedProducts = [previousProduct, nextProduct].filter(Boolean);
@@ -633,7 +656,8 @@ async function p2SyncLinkedVendor(nextProduct) {
   return { updated: updated };
 }
 
-// 기존 물류 기록에 제품마스터정보2의 식별자를 보강합니다. 일치하지 않는 과거 기록은 임의로 변경하지 않습니다.
+// 기존 물류 기록의 품목명을 제품마스터정보2의 상품명·상품코드·제품 ID로 보강합니다.
+// 표기 차이는 단일 후보로 식별되는 경우에만 보정하고, 불명확한 과거 기록은 임의로 변경하지 않습니다.
 async function p2BackfillLogisticsLinks() {
   var products = await apiGetAll('products2');
   var collections = ['lg2_inbound', 'lg2_outbound', 'lg2_audit'];
@@ -643,9 +667,7 @@ async function p2BackfillLogisticsLinks() {
     var records = await apiGetAll(collection);
     for (var ri = 0; ri < records.length; ri++) {
       var record = records[ri];
-      var product = (products || []).find(function(candidate) {
-        return p2IsLinkedLogisticsRecord(record, candidate);
-      });
+      var product = p2FindCanonicalProductForLogisticsRecord(record, products);
       if (!product || !record.id) continue;
       var linkData = p2BuildLogisticsLink(product);
       if (record.item_name !== linkData.item_name || record.product_id !== linkData.product_id || record.product_code !== linkData.product_code) {
