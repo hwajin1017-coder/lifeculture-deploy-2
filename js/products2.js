@@ -832,7 +832,6 @@ function p2OpenDetail(id) {
   body.innerHTML = ''
     + '<div class="p2-detail-section"><h4>📋 기본정보</h4>'
     + '<div class="p2-detail-grid">'
-    + row('GS리테일 분류코드', rec.gs_code)
     + row('당사 분류코드', rec.own_code)
     + row('상품코드', rec.product_code)
     + row('상품구분', rec.product_type)
