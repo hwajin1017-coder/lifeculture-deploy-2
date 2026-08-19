@@ -522,7 +522,7 @@ function p2GetFormData() {
   return {
     own_code:         get('p2OwnCode'),
     product_code:     get('p2ProductCode'),
-    product_name:     get('p2ProductName'),
+    product_name:     p2CompactProductName(get('p2ProductName')),
     cost_price:       getNum('p2CostPrice'),
     weight:           getNum('p2Weight'),
     qty_per_box:      getNum('p2QtyPerBox'),
@@ -552,6 +552,11 @@ function p2GetFormData() {
 }
 
 // ── 제품마스터정보2 기준 연동 헬퍼 ──
+// 제품마스터정보2의 상품명 표기 기준: 단어 사이 공백 없이 붙여 씁니다.
+function p2CompactProductName(value) {
+  return String(value || '').replace(/\s+/g, '').trim();
+}
+
 function p2SyncKey(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -683,6 +688,10 @@ async function p2BackfillLogisticsLinks() {
 async function p2HandleSubmit(e) {
   e.preventDefault();
   var data = p2GetFormData();
+  // 사용자가 공백을 포함해 입력해도 제품마스터정보2의 상품명 표기 기준으로 저장합니다.
+  data.product_name = p2CompactProductName(data.product_name);
+  var productNameField = document.getElementById('p2ProductName');
+  if (productNameField && productNameField.value !== data.product_name) productNameField.value = data.product_name;
   if (!data.own_code && !_p2EditingId) {
     data.own_code = await p2GenerateOwnCode();
     var ownCodeEl = document.getElementById('p2OwnCode');
@@ -982,7 +991,7 @@ function p2HandleFile(file) {
           gs_code:          iGsCode >= 0 ? String(r[iGsCode] || '').trim() : '',
           own_code:         iOwnCode >= 0 ? String(r[iOwnCode] || '').trim() : '',
           product_code:     iCode >= 0 ? String(r[iCode] || '').trim() : '',
-          product_name:     iName >= 0 ? String(r[iName] || '').trim() : '',
+          product_name:     iName >= 0 ? p2CompactProductName(String(r[iName] || '').trim()) : '',
           cost_price:       iCost >= 0 ? (Number(r[iCost]) || null) : null,
           weight:           iWeight >= 0 ? (Number(r[iWeight]) || null) : null,
           qty_per_box:      iQtyBox >= 0 ? (Number(r[iQtyBox]) || null) : null,
