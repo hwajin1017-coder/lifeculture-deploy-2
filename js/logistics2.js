@@ -77,11 +77,16 @@ function lg2SwitchTab(tab) {
 // ══════════════════════════════════════════════════
 // 제품마스터 연동 헬퍼
 // ══════════════════════════════════════════════════
+// 물류관리2의 상품명 표기 기준: 단어 사이 공백 없이 붙여 씁니다.
+function lg2CompactProductName(value) {
+  return String(value || '').replace(/\s+/g, '').trim();
+}
+
 function lg2GetProduct(itemName) {
   if (!_lg2ProductCache || !itemName) return null;
-  var name = (itemName || '').trim().toLowerCase();
+  var name = lg2CompactProductName(itemName).toLowerCase();
   return _lg2ProductCache.find(function(p) {
-    return (p.product_name || '').trim().toLowerCase() === name;
+    return lg2CompactProductName(p.product_name).toLowerCase() === name;
   }) || null;
 }
 
@@ -883,7 +888,9 @@ async function lg2SaveInbound() {
   var getVal = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var date    = getVal('lg2InDate');
   var wh      = getVal('lg2InWarehouseModal');
-  var item    = getVal('lg2InItem');
+  var item    = lg2CompactProductName(getVal('lg2InItem'));
+  var inItemEl = document.getElementById('lg2InItem');
+  if (inItemEl && inItemEl.value !== item) inItemEl.value = item;
   var qtyStr  = getVal('lg2InQty');
   var defectQtyStr = getVal('lg2InDefectQty');
   var defectReason = getVal('lg2InDefectReason');
@@ -1021,7 +1028,9 @@ async function lg2SaveOutbound() {
   var getVal = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var date   = getVal('lg2OutDate');
   var wh     = getVal('lg2OutWarehouseModal');
-  var item   = getVal('lg2OutItem');
+  var item   = lg2CompactProductName(getVal('lg2OutItem'));
+  var outItemEl = document.getElementById('lg2OutItem');
+  if (outItemEl && outItemEl.value !== item) outItemEl.value = item;
   var qtyStr = getVal('lg2OutQty');
   var defectQtyStr = getVal('lg2OutDefectQty');
   var defectReason = getVal('lg2OutDefectReason');
@@ -1156,7 +1165,9 @@ async function lg2SaveAudit() {
   var getVal = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
   var date   = getVal('lg2AuditDate');
   var wh     = getVal('lg2AuditWarehouse');
-  var item   = getVal('lg2AuditItem');
+  var item   = lg2CompactProductName(getVal('lg2AuditItem'));
+  var auditItemEl = document.getElementById('lg2AuditItem');
+  if (auditItemEl && auditItemEl.value !== item) auditItemEl.value = item;
   var actual = getVal('lg2AuditActual');
   var expiry = getVal('lg2AuditExpiry');
   var manager= getVal('lg2AuditManager');
@@ -1927,7 +1938,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
 
       for (var ri = 0; ri < dataRows.length; ri++) {
         var row = dataRows[ri];
-        var itemName = String(row[iItem] || '').trim();
+        var itemName = lg2CompactProductName(String(row[iItem] || '').trim());
         if (!itemName) { skipped++; continue; }
         var qty = parseInt(row[iQty] || 0) || 0;
         if (qty <= 0) { skipped++; continue; }
@@ -1981,7 +1992,7 @@ async function lg2ParseAndSaveExcel(file, mode) {
 
       for (var oi = 0; oi < dataRows.length; oi++) {
         var orow = dataRows[oi];
-        var oItemName = String(orow[oItem] || '').trim();
+        var oItemName = lg2CompactProductName(String(orow[oItem] || '').trim());
         if (!oItemName) { skipped++; continue; }
         var oQtyVal = parseInt(orow[oQty] || 0) || 0;
         if (oQtyVal <= 0) { skipped++; continue; }
@@ -2238,7 +2249,7 @@ function lg2AuditParseExcel(file) {
 
       var parsed = [];
       dataRows.forEach(function(r) {
-        var itemName = String(r[iItem] || '').trim();
+        var itemName = lg2CompactProductName(String(r[iItem] || '').trim());
         var qty = Number(r[iQty]) || 0;
         if (!itemName) return;
         var auditDate = iDate >= 0 ? toDateStr(r[iDate]) : todayStr;
@@ -2274,11 +2285,12 @@ async function lg2AuditConfirmUpload() {
     var latestDate = '';
     for (var i = 0; i < _lg2AuditPendingRows.length; i++) {
       var row = _lg2AuditPendingRows[i];
-      var productLink = lg2GetProductLink(row.item_name);
+      var itemName = lg2CompactProductName(row.item_name);
+      var productLink = lg2GetProductLink(itemName);
       var rec = {
         date:        row.date,
         audit_date:  row.date,
-        item_name:   row.item_name,
+        item_name:   itemName,
         product_id:  productLink.product_id,
         product_code: productLink.product_code,
         warehouse:   row.warehouse,
@@ -2358,6 +2370,8 @@ function lg2AuditRowChange(idx, field, value) {
   if (!_lg2AuditPendingRows[idx]) return;
   if (field === 'actual_qty') {
     _lg2AuditPendingRows[idx][field] = Number(value) || 0;
+  } else if (field === 'item_name') {
+    _lg2AuditPendingRows[idx][field] = lg2CompactProductName(value);
   } else {
     _lg2AuditPendingRows[idx][field] = value;
   }
