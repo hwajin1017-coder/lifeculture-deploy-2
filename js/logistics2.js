@@ -183,9 +183,9 @@ function lg2GetFifoStock(itemName, warehouse) {
 
   // ════════════════════════════════════════════════════════
   // [A] 실사 기준일이 설정된 경우
-  //   ① 실사 actual_qty = 해당 소비기한의 실제 재고 기준점
-  //   ② 기준일 이후 입고 더함 (strict: baseDate 초과)
-  //   ③ 기준일 이후 출고 FIFO 차감
+  //   ① 설정 기준일 이하의 최신 실사 actual_qty = 해당 소비기한의 실제 재고 기준점
+  //   ② 실제 실사일 이후 입고 더함 (기준일이 실사일보다 늦어도 중간 입출고는 누락하지 않음)
+  //   ③ 실제 실사일 이후 출고 FIFO 차감
   //   ④ 실사 스냅샷이 없는 품목은 전체 입출고 기준
   // ════════════════════════════════════════════════════════
   if (baseDate) {
@@ -205,6 +205,12 @@ function lg2GetFifoStock(itemName, warehouse) {
     var hasSnap = Object.keys(auditSnap).length > 0;
 
     if (hasSnap) {
+      // 스냅샷의 실제 실사일을 계산 시작점으로 사용합니다.
+      // 설정 기준일은 "어떤 실사까지 사용할지"를 제한할 뿐, 실사일과 기준일 사이의 정상 입출고를 버리지 않습니다.
+      var snapshotDate = Object.keys(auditSnap).reduce(function(latest, expKey) {
+        var snapDate = auditSnap[expKey].snapDate || '';
+        return snapDate > latest ? snapDate : latest;
+      }, '');
       // 실사 스냅샷을 시작점으로 설정
       // inQty = actual_qty (실사수량 그대로), outQty = 0 시작
       var snapMap = {}; // { expKey: { expiry, inQty, outQty } }
@@ -217,21 +223,21 @@ function lg2GetFifoStock(itemName, warehouse) {
         };
       });
 
-      // ② 기준일 이후 입고 추가 (strict: baseDate 초과)
+      // ② 실제 실사일 이후 입고 추가 (strict: snapshotDate 초과)
       _lg2InboundData.forEach(function(r) {
         if ((r.item_name || '').trim() !== itemTrim) return;
         if (wh && r.warehouse !== wh) return;
-        if (!r.date || r.date <= baseDate) return;
+        if (!r.date || r.date <= snapshotDate) return;
         var expKey = r.expiry || '';
         if (!snapMap[expKey]) snapMap[expKey] = { expiry: expKey, warehouse: r.warehouse || '', inQty: 0, outQty: 0 };
         snapMap[expKey].inQty += Number(r.qty_ea) || 0;
       });
 
-      // ③ 기준일 이후 출고 FIFO 차감
+      // ③ 실제 실사일 이후 출고 FIFO 차감
       var outAfter = _lg2OutboundData.filter(function(r) {
         if ((r.item_name || '').trim() !== itemTrim) return false;
         if (wh && r.warehouse !== wh) return false;
-        return r.date && r.date > baseDate;
+        return r.date && r.date > snapshotDate;
       });
       var snapKeys = Object.keys(snapMap).sort(function(a, b) {
         return (snapMap[a].expiry || '9999').localeCompare(snapMap[b].expiry || '9999');
